@@ -15,9 +15,9 @@ abstract: >-
   on the soft renderer's mis-scaled constants, CineForm in Godot, and the
   one-repo-per-model reranking, and the gates and apparatus that produced the
   numbers.
-
-  No licence is asserted. This repository carries no LICENSE file, and stating
-  one here would be a claim the repository does not make.
+license:
+  - Apache-2.0
+  - MIT
 authors:
   - family-names: Lee
     given-names: "K. S. Ernest (iFire)"

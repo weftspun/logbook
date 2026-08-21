@@ -262,9 +262,13 @@ algorithms in the abstract; I never measured what Godot does.
 
 1. `SkeletonModifier3D::get_roll_angle()` -- the shared helper -- IS a true quaternion
    swing-twist projection:
+
+   ```text
    dot = q.xyz . roll_axis
-   roll_component = Quaternion(roll_axis _ dot, q.w); normalize
-   angle = 2 _ acos(clamp(roll_component.w)); signed by direction
+   roll_component = Quaternion(roll_axis * dot, q.w); normalize
+   angle = 2 * acos(clamp(roll_component.w)); signed by direction
+   ```
+
    That is exactly the algorithm I reimplemented. Godot does NOT read an Euler channel here, so
    it does NOT gimbal at large swing.
 
