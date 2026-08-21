@@ -73,7 +73,7 @@ is distribution collapse, not generation per se. The four conditions above are t
 written out. `EasyDiffusion outputs` and `seethrough PSDs` stay blocklisted below — those are
 secondary generation with no recorded provenance, which is condition 1 failing.
 
-**The blinded holdout.** `dataflow-coco-gemx/coco_person_commercial_val2017` — 523
+**The blinded holdout.** `coco_person_commercial_val2017` — 523
 license-filtered COCO person images — is a **blinded** validation set. Blinded means more than
 unused for gradient steps: it is not inspected while developing, not used to pick a checkpoint,
 a hyperparameter, a threshold, or a stopping point, and not looked at to decide whether an
@@ -234,9 +234,11 @@ apparatus — enough to re-run the test, not merely its conclusion.
 withdraw an earlier number, and that is the point: a reader who knows which roads are dead
 ends is better off than one who only knows the current answer.
 
-Documentation carries the same obligation. Where a README states a number, that number
-should be machine-checked against live code (see `dataflow-coco-gemx/check_readme_claims.py`)
-so drift fails a command rather than being discovered six months later.
+Documentation carries the same obligation. Where a document states a number or a rule,
+that statement should be machine-checked against live code, so drift fails a command rather
+than being discovered six months later. `request-for-discussion/scripts/check-rfd-structure.py`
+is the reference case: it reads its state list and its README line limit out of RFD 1000
+rather than restating them, so the document and the gate cannot disagree.
 
 ## Blocklists
 
