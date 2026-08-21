@@ -27,7 +27,7 @@ Every defect in this system sits at a boundary between two things:
 
 Components get tested because they are easy to name. Interfaces belong to nobody.
 
-**Guard:** `dataflow-coco-gemx/interface_audit.py` names 17 interfaces. Each resolves to
+**Guard:** `interface_audit.py` names 17 interfaces. Each resolves to
 `OK`, `HAZARD`, or `UNCHECKED` — never absent.
 
 ---
