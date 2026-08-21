@@ -10,10 +10,10 @@ CineForm is a wavelet codec sold as visually lossless. Depth is a measurement in
 "you cannot see the difference" is not the test. Over 24 frames at 1024x1024 of a depth ramp
 carrying a 0.2 m step, because wavelets do their worst at edges:
 
-| pixel format | bits | MB per 1000 frames | end to end median | worst | codec only |
-| --- | --- | --- | --- | --- | --- |
-| `gbrp12le` | 12 | 127 | 0.46 mm | 3.3 mm | 0.39 mm |
-| `yuv422p10le` | 10 | 94 | 2.10 mm | 7.9 mm | 1.56 mm |
+| pixel format  | bits | MB per 1000 frames | end to end median | worst  | codec only |
+| ------------- | ---- | ------------------ | ----------------- | ------ | ---------- |
+| `gbrp12le`    | 12   | 127                | 0.46 mm           | 3.3 mm | 0.39 mm    |
+| `yuv422p10le` | 10   | 94                 | 2.10 mm           | 7.9 mm | 1.56 mm    |
 
 Quantisation alone is 0.39 mm for each step at 12 bit and 1.56 mm at 10 bit, so CineForm adds
 about one step and no more. 0.46 mm is half a credit card's thickness. 10 bit is ruled out:
@@ -54,12 +54,12 @@ Five frictions, none visible from reading the code:
 
 1920x1080 at 60 fps, 240 frames, budget 16.67 ms for each frame:
 
-| | encode | note |
-| --- | --- | --- |
-| blocking drain, no alpha | 16.65 ms | |
-| blocking drain, alpha | 22.17 ms | |
+|                              | encode      | note |
+| ---------------------------- | ----------- | ---- |
+| blocking drain, no alpha     | 16.65 ms    |      |
+| blocking drain, alpha        | 22.17 ms    |      |
 | **pipelined pool, no alpha** | **2.12 ms** | 7.9x |
-| **pipelined pool, alpha** | **2.39 ms** | 9.3x |
+| **pipelined pool, alpha**    | **2.39 ms** | 9.3x |
 
 The blocking `_drain(true)` waited for each frame's own sample and idled 15 of 16 encoder
 threads. **Every 4K figure taken before this fix is void**, including a 52 ms one that was
@@ -113,13 +113,13 @@ is 1.5 ms. The 36 ms remainder was hypothesised to be the 33 MB PCIe readback.
 **That hypothesis is weakened by measurement.** A resolution ladder from 640x360 to 3840x2160,
 alpha on, taking the slope of a 120 frame and a 480 frame run so startup cancels:
 
-| resolution | pixels | rep 1 | rep 2 | encode |
-| --- | --- | --- | --- | --- |
-| 640x360 | 0.23 MP | 16.75 ms | 16.51 ms | 0.55 ms |
-| 1280x720 | 0.92 MP | 16.74 ms | 16.24 ms | 1.34 ms |
-| 1920x1080 | 2.07 MP | 16.48 ms | 16.61 ms | 2.51 ms |
-| 2560x1440 | 3.69 MP | 17.34 ms | 19.82 ms | 6.25 ms |
-| 3840x2160 | 8.29 MP | 35.96 ms | 31.58 ms | 11.50 ms |
+| resolution | pixels  | rep 1    | rep 2    | encode   |
+| ---------- | ------- | -------- | -------- | -------- |
+| 640x360    | 0.23 MP | 16.75 ms | 16.51 ms | 0.55 ms  |
+| 1280x720   | 0.92 MP | 16.74 ms | 16.24 ms | 1.34 ms  |
+| 1920x1080  | 2.07 MP | 16.48 ms | 16.61 ms | 2.51 ms  |
+| 2560x1440  | 3.69 MP | 17.34 ms | 19.82 ms | 6.25 ms  |
+| 3840x2160  | 8.29 MP | 35.96 ms | 31.58 ms | 11.50 ms |
 
 640x360 moves 36 times fewer pixels than 4K and costs the same 16.75 ms. **A cost that does not
 move with pixel count is not a transfer**, so whatever the floor is, it is not the readback.

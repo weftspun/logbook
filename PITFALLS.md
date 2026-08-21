@@ -13,17 +13,17 @@ than a line to date. Ordered by cost.
 
 Every defect in this system sits at a boundary between two things:
 
-| boundary | cost |
-|---|---|
-| ANNY gender `0=male` against GNM `FEMALE=0` | flips sex on 800k images |
-| ANNY Z-up/metres against SOMA +Y-up/centimetres | 100x scale, or a body on its side |
-| "local Z" against the bone's roll axis | measures a bend and calls it a twist |
-| `rest_bone_heads` against `vertices` | 55 mm on an adult, **500 mm on a child** |
-| `lowerarm01` / `lowerarm02` weight boundary | the forearm twist defect |
-| twist bones against LabRCSF's joint list | 12 ANNY bones carry no canonical name |
-| forearm / hand mask boundary | mesh mean understates finger error 4x |
-| train / val split | contamination |
-| BVH bind orientation against ANNY's | 29.6 deg per-limb offset; blocks the poses relation |
+| boundary                                        | cost                                                |
+| ----------------------------------------------- | --------------------------------------------------- |
+| ANNY gender `0=male` against GNM `FEMALE=0`     | flips sex on 800k images                            |
+| ANNY Z-up/metres against SOMA +Y-up/centimetres | 100x scale, or a body on its side                   |
+| "local Z" against the bone's roll axis          | measures a bend and calls it a twist                |
+| `rest_bone_heads` against `vertices`            | 55 mm on an adult, **500 mm on a child**            |
+| `lowerarm01` / `lowerarm02` weight boundary     | the forearm twist defect                            |
+| twist bones against LabRCSF's joint list        | 12 ANNY bones carry no canonical name               |
+| forearm / hand mask boundary                    | mesh mean understates finger error 4x               |
+| train / val split                               | contamination                                       |
+| BVH bind orientation against ANNY's             | 29.6 deg per-limb offset; blocks the poses relation |
 
 Components get tested because they are easy to name. Interfaces belong to nobody.
 
@@ -71,13 +71,13 @@ Three checks in this system produce no output and look clean while doing nothing
 
 Five pairs, where the left column is the one that is easy to read:
 
-| proxy | measurement that settles it |
-|---|---|
-| joints.csv **name coverage** | silhouette survival |
-| Godot's **API surface** | the source |
-| phenotype **parameter percentiles** | decoded stature in metres |
-| **centroid** limb direction (thigh "+9.7 deg") | recovered **joint angle** (2.2 deg) |
-| joint-**position** residual (BVH "153 mm") | limb **direction**, which is scale-free |
+| proxy                                          | measurement that settles it             |
+| ---------------------------------------------- | --------------------------------------- |
+| joints.csv **name coverage**                   | silhouette survival                     |
+| Godot's **API surface**                        | the source                              |
+| phenotype **parameter percentiles**            | decoded stature in metres               |
+| **centroid** limb direction (thigh "+9.7 deg") | recovered **joint angle** (2.2 deg)     |
+| joint-**position** residual (BVH "153 mm")     | limb **direction**, which is scale-free |
 
 ---
 
@@ -103,7 +103,7 @@ identities (800 of 800k images) escapes 95% of the time, and the audit prints al
 
 A full decode of 23,000 identities costs **95 seconds**.
 
-For a *fixed* population, enumeration replaces estimation. Estimation belongs to unbounded
+For a _fixed_ population, enumeration replaces estimation. Estimation belongs to unbounded
 streams.
 
 **Guard:** `preflight_audit.py` prints its detection floor and fails when asked to certify
@@ -129,9 +129,9 @@ measurement; an absolute rate without a reference does not interpret.
 ## 8. Conventions are data — parse them
 
 - BVH channel order is per-joint and declared. 100STYLE writes `Yrotation Xrotation
-  Zrotation`; a positional read transposes every rotation.
+Zrotation`; a positional read transposes every rotation.
 - ANNY's `local-ref` rotation axes are world-aligned. The local-to-world map is the identity,
-  so "local Z" is *world* Z, 55 deg off the forearm.
+  so "local Z" is _world_ Z, 55 deg off the forearm.
 - An identity `pose_parameters` is not the rest pose.
 - `rest_bone_heads` pairs with `rest_vertices`, never with `vertices`.
 - Up axis and units differ per model and per rig.

@@ -48,13 +48,13 @@ training, tuning, and selection.
 
 Synthetic data is two classes, and the distinction is the whole rule:
 
-*Constructed* synthetic is **rendered deterministically from source assets we hold** — Live2D
+_Constructed_ synthetic is **rendered deterministically from source assets we hold** — Live2D
 drawables, ANNY rigs, BVH poses. The labels are true by construction rather than inferred, the
 same seed reproduces the corpus, and nothing was sampled from a learned distribution. This is
 ordinary training data and always has been; `syn_data.py`'s Live2D renders are the reference
 case.
 
-*Generated* synthetic is **sampled from a generative model** — diffusion outputs, GAN style
+_Generated_ synthetic is **sampled from a generative model** — diffusion outputs, GAN style
 transfer, a teacher's predictions. Permitted in a training corpus only when all four hold:
 
 1. the generating model, checkpoint and prompt/conditioning are recorded with the data, so the
@@ -85,9 +85,9 @@ is precisely why it is worth protecting.
 
 Two corollaries that are easy to violate without noticing:
 
-* **Never generate from it.** If train2017 feeds a generation pipeline, val2017 must not — an
+- **Never generate from it.** If train2017 feeds a generation pipeline, val2017 must not — an
   image generated from a held-out photo carries that photo's content into training.
-* **Anything derived from val2017 inherits its status.** The COCO-OOD stylized sets
+- **Anything derived from val2017 inherits its status.** The COCO-OOD stylized sets
   (`6-datasource/coco-ood-eval`) are val2017 restyled, so they are evaluation-only twice over:
   derived from the holdout, and generated.
 
@@ -145,7 +145,7 @@ This rule used to name one manifest, `weftspun/weftspun`, because there was one.
 repository is **archived**: the manifest was split per goal, so the shared corpus projects now
 appear in both goal manifests rather than once in a single one. The wording matters because
 the archived manifest still lists projects, and a project placed only there is unplaced —
-placement is what a *live* goal manifest says, not what the last revision of a read-only one
+placement is what a _live_ goal manifest says, not what the last revision of a read-only one
 says.
 
 **Temporary files.** `.local` at the workspace root, and nowhere else. Intermediate outputs,
@@ -166,7 +166,7 @@ That last one is the limit — an ignore is not a lock. It stops the accident, n
 
 The division it enforces is the one that is otherwise kept by memory. A measurement goes to the
 logbook next to its apparatus; a deliverable goes to a PSD with its `.cff`, pushed before
-teardown. `.local` is where work that does *not* matter goes, so the two are told apart by
+teardown. `.local` is where work that does _not_ matter goes, so the two are told apart by
 location. Treat it as though it disappears, because on any other desk it already has.
 
 **Deliverables.** Video-ready assets land as PSD or a video/image intermediate with `.cff`
@@ -195,7 +195,7 @@ These recur often enough to state as rules:
    things are named and counted, never omitted.
 4. **A number without a baseline is not a measurement.** Report the floor in the same table.
 5. **State the detection floor.** A sampled check only sees defects larger than ~3/n. For a
-   *fixed* population, enumerate rather than estimate.
+   _fixed_ population, enumerate rather than estimate.
 6. **Conventions are data.** Parse rotation order, up axis, and units; never assume them.
 7. **Bugs live at interfaces**, not inside components. Name the interfaces and check each.
 
@@ -242,23 +242,23 @@ so drift fails a command rather than being discovered six months later.
 
 Sources excluded from corpora, with the reason:
 
-| source | reason |
-|---|---|
-| CMU mocap | provenance |
-| Mixamo animation packs | licensing |
-| posemaniacs | third-party pose scraping |
-| CC-BY-SA | share-alike exposure |
-| **OpenRAIL-M** as a *generator* | use-restrictions propagate into anything trained on the output — **passthrough use is exempt**, see below |
-| **FLUX.1** | the conditionable half is non-commercial; the permissive half cannot be conditioned — see below |
-| generators with no licence-clean **depth** control | HiDream-I1, SANA — see below |
-| **hosted-API generators** as a corpus source | Nano-banana / Gemini and any API-only model — condition 1 cannot be satisfied without a checkpoint, see below |
-| DeepFashion | re-export of a research-only corpus |
-| AddBiomechanics `.b3d` as an identity source | lab volunteers — narrow and inequitable population |
-| `caldata_*_jc.parquet` | pre-cut derivatives; use originals |
-| EasyDiffusion outputs, seethrough PSDs | secondary generation |
-| `alfredplpl/anime-with-caption-cc0` | hand quality — **images** blocked, captions permitted |
-| **git submodules** | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below |
-| `weftspun/rf-detr-keypoint-data` | **val2017-derived** — carries the whole blinded holdout, and 78% of it is licence-dirty. Validation only, never training. See below |
+| source                                             | reason                                                                                                                              |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| CMU mocap                                          | provenance                                                                                                                          |
+| Mixamo animation packs                             | licensing                                                                                                                           |
+| posemaniacs                                        | third-party pose scraping                                                                                                           |
+| CC-BY-SA                                           | share-alike exposure                                                                                                                |
+| **OpenRAIL-M** as a _generator_                    | use-restrictions propagate into anything trained on the output — **passthrough use is exempt**, see below                           |
+| **FLUX.1**                                         | the conditionable half is non-commercial; the permissive half cannot be conditioned — see below                                     |
+| generators with no licence-clean **depth** control | HiDream-I1, SANA — see below                                                                                                        |
+| **hosted-API generators** as a corpus source       | Nano-banana / Gemini and any API-only model — condition 1 cannot be satisfied without a checkpoint, see below                       |
+| DeepFashion                                        | re-export of a research-only corpus                                                                                                 |
+| AddBiomechanics `.b3d` as an identity source       | lab volunteers — narrow and inequitable population                                                                                  |
+| `caldata_*_jc.parquet`                             | pre-cut derivatives; use originals                                                                                                  |
+| EasyDiffusion outputs, seethrough PSDs             | secondary generation                                                                                                                |
+| `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
+| **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
+| `weftspun/rf-detr-keypoint-data`                   | **val2017-derived** — carries the whole blinded holdout, and 78% of it is licence-dirty. Validation only, never training. See below |
 
 The cosplay photo library may be used for **validation only**, never
 training.
@@ -305,18 +305,18 @@ because a comment can sit beside the entry. A `.gitmodules` line answers only th
 
 Two consequences worth stating rather than discovering:
 
-* **Fork before you pin.** A `revision` on somebody else's repository is a promise they have
+- **Fork before you pin.** A `revision` on somebody else's repository is a promise they have
   not made. `godot-cpp` is forked to `weftspun/godot-cpp` for exactly this, and pinned at the
   commit `godot-whisper` ships, so a nine-platform build is a question about our code rather
   than about the binding library.
-* **A vendored copy is not a submodule and is not blocked.** Copying source into `thirdparty/`
+- **A vendored copy is not a submodule and is not blocked.** Copying source into `thirdparty/`
   with its licence and a recorded upstream hash is visible in every diff, which is the property
   submodules lack. Prefer a manifest entry, vendor when the dependency is small and stable, and
   do not reach for a submodule in either case.
 
 ### A corpus generator must be a checkpoint we hold
 
-Any API-only model is excluded as a *corpus source*, and the reason is structural rather than
+Any API-only model is excluded as a _corpus source_, and the reason is structural rather than
 contractual, so it survives whatever the terms happen to say this year.
 
 **Condition 1 cannot be satisfied.** The generated-synthetic rule requires the generating
@@ -329,13 +329,13 @@ for, arriving through a different door.
 Two further reasons apply to Nano-banana / Gemini specifically, and both would be sufficient
 on their own:
 
-* The [Gemini API Additional Terms](https://ai.google.dev/gemini-api/terms) state that users
+- The [Gemini API Additional Terms](https://ai.google.dev/gemini-api/terms) state that users
   "may not use the services to develop models that compete with the services", nor "reverse
   engineer, extract, or replicate any component of the services, including underlying data or
-  models". Building a training corpus *is* using the service to develop a model; whether the
+  models". Building a training corpus _is_ using the service to develop a model; whether the
   result competes is a judgement we are not positioned to make, which is the same propagation
   problem OpenRAIL poses, now with a counterparty able to enforce it.
-* On the unpaid tier and AI Studio, Google uses submitted content **and generated responses**
+- On the unpaid tier and AI Studio, Google uses submitted content **and generated responses**
   to improve its products, and human reviewers may read them. Our renders, prompts and
   captions would go with it.
 
@@ -357,29 +357,29 @@ that cannot take a **depth** control cannot do the job however clean its terms a
 Stating it as a rule rather than a list, because the list keeps growing and each entry arrives
 looking attractive:
 
-* **HiDream-I1** is **MIT** — the most permissive licence of any candidate reviewed — and its
+- **HiDream-I1** is **MIT** — the most permissive licence of any candidate reviewed — and its
   only conditioning is `ControlNetLoRA/hidream-i1`: a single LoRA, not a ControlNet family,
   under `license:other`, with 14 downloads and no likes. That fails the same way the FLUX
   ControlNets do, on unreadable terms rather than on absence.
-* **SANA** is Apache-2.0 throughout and its ControlNet *architecture* supports depth —
+- **SANA** is Apache-2.0 throughout and its ControlNet _architecture_ supports depth —
   `SanaControlNetModel` is in diffusers. **No depth checkpoint is published**: the released
   weights are HED only. Edge conditioning from a render carries silhouette and internal
   contours with no depth ordering, so it cannot say which limb is in front, and for a body
-  limb overlap is the hard part. This is the one candidate whose gap is *work rather than
-  terms* — the licence is clean end to end, so a depth ControlNet could be trained. Costed as
+  limb overlap is the hard part. This is the one candidate whose gap is _work rather than
+  terms_ — the licence is clean end to end, so a depth ControlNet could be trained. Costed as
   a training job, not adopted as-is.
-* **FLUX.1** fails a third way, below.
+- **FLUX.1** fails a third way, below.
 
-Three clear at the time of writing, all Apache-2.0 in base *and* control:
+Three clear at the time of writing, all Apache-2.0 in base _and_ control:
 
-* **Qwen-Image** — a union plus a dedicated depth model, from several independent maintainers.
-* **Z-Image-Turbo** — union, `alibaba-pai`.
-**Kolors is not blocklisted, and its position is precise.** It is the only from-scratch,
-Apache-2.0, SDXL-architecture model with its own ControlNets — trained by Kwai with a ChatGLM
-text encoder, so it carries no SDXL weight lineage and none of OpenRAIL's terms. Architecture
-similarity is not licence inheritance, and the converse holds too: relabelling an SDXL
-*derivative* as Apache-2.0 does not shed OpenRAIL++'s use restrictions, which is what makes
-`segmind/SSD-1B` a trap rather than an alternative.
+- **Qwen-Image** — a union plus a dedicated depth model, from several independent maintainers.
+- **Z-Image-Turbo** — union, `alibaba-pai`.
+  **Kolors is not blocklisted, and its position is precise.** It is the only from-scratch,
+  Apache-2.0, SDXL-architecture model with its own ControlNets — trained by Kwai with a ChatGLM
+  text encoder, so it carries no SDXL weight lineage and none of OpenRAIL's terms. Architecture
+  similarity is not licence inheritance, and the converse holds too: relabelling an SDXL
+  _derivative_ as Apache-2.0 does not shed OpenRAIL++'s use restrictions, which is what makes
+  `segmind/SSD-1B` a trap rather than an alternative.
 
 Two measurements bound what it can do, and both were taken rather than assumed.
 
@@ -419,7 +419,7 @@ even under the same owner.
 An enumeration by model name is not sufficient to establish this, and the first pass here got
 it wrong twice: HiDream's ControlNet is published under a different org, so a name-scoped
 search missed it, and SANA's architecture supports depth even though its checkpoints do not.
-Search the ecosystem, then read the licence of the *control* weights, not only the base.
+Search the ecosystem, then read the licence of the _control_ weights, not only the base.
 
 Popularity is not the measure. Z-Image-Turbo has roughly 27x Qwen-Image's hosted run count and
 that decided nothing; conditioning did. And a hosted endpoint adds the platform's terms to the
@@ -435,11 +435,11 @@ corpus.
 Sapiens, and it needs no further argument.
 
 **FLUX.1 [schnell]** is Apache-2.0 and 4-step distilled, which reads as ideal — and it has no
-licence-clean way to be conditioned. Every FLUX ControlNet targets *[dev]*: InstantX Union,
+licence-clean way to be conditioned. Every FLUX ControlNet targets _[dev]_: InstantX Union,
 Shakker-Labs Union-Pro and Depth, InstantX Canny. All of them are tagged `license:other`,
 which is unreadable under the rule above, and all are trained against a non-commercial base.
 
-Loading a *[dev]* ControlNet onto *[schnell]* fails twice over. The two models differ in
+Loading a _[dev]_ ControlNet onto _[schnell]_ fails twice over. The two models differ in
 guidance behaviour, so it is not merely a licence question — and it propagates the base
 model's terms into whatever the output trains, which is the same propagation that blocks
 OpenRAIL-M as a generator.
@@ -454,19 +454,19 @@ rather than only a union.
 
 ### OpenRAIL-M: blocked as a generator, permitted as passthrough
 
-The line is what the model is *for*, not which weights it is:
+The line is what the model is _for_, not which weights it is:
 
-* **Passthrough** — the model transforms an input the user supplied and hands the result back.
+- **Passthrough** — the model transforms an input the user supplied and hands the result back.
   LayerDiffuse cutting an image into layers, Marigold reading depth off a photo, LaMa filling a
   hole. The input carries the provenance, the output goes to whoever supplied it, and the
   restriction travels with a single artefact. **Permitted.**
-* **Generator** — the model samples new content, and that content becomes a corpus something
+- **Generator** — the model samples new content, and that content becomes a corpus something
   else trains on. Here the restriction does not stay with one artefact: it propagates into
   weights, where no licence check can see it afterwards. **Blocked.**
 
 This is the same cut the synthetic-data rule already makes. A transformation of an asset we
-hold is closer to *constructed*; sampling appearance from a learned distribution and training
-on it is *generated*, with condition 1 — recorded provenance — becoming unanswerable once the
+hold is closer to _constructed_; sampling appearance from a learned distribution and training
+on it is _generated_, with condition 1 — recorded provenance — becoming unanswerable once the
 result is inside somebody's weights.
 
 So `seethrough-ggml` is compliant. It is SDXL-derived through JuggernautXL v6 and OpenRAIL-M
@@ -474,7 +474,7 @@ throughout, and it is passthrough by construction: See-Through takes the user's 
 it. Nothing it emits trains anything.
 
 **The case this rule does not settle, and must not be assumed either way.** Rendering an ANNY
-pose and running img2img over it is *operationally* passthrough — our own asset in, geometry
+pose and running img2img over it is _operationally_ passthrough — our own asset in, geometry
 preserved, appearance changed — but its destination is a training corpus, which is the
 generator case. Operation says permitted, destination says blocked.
 
@@ -499,7 +499,7 @@ the thing being learned is worse than one that is merely encumbered.
 
 **The captions are separable from the images, and they are not excluded.** The defect is in the
 pixels: hands are drawn wrong. A caption is text, and carries none of it. So the entry blocks
-the *images* and permits the *captions*, which may be reused as prompt conditioning — the
+the _images_ and permits the _captions_, which may be reused as prompt conditioning — the
 intended use is generation where ANNY supplies the shape and the caption supplies the language,
 so no pixel from this dataset reaches the corpus.
 
@@ -518,7 +518,7 @@ One consequence to keep straight: `seethrough-ggml/art/concept/anime_with_captio
 comes from this dataset and is the reference input for every timing in MADR 0010/0011/0013 and
 the optimization ladder. Those measurements stay valid — a benchmark input needs to be fixed
 and representative, not defect-free, and re-basing them would discard the comparability that
-makes them a ladder. The exclusion is on *training*, not on that one image's continued use as a
+makes them a ladder. The exclusion is on _training_, not on that one image's continued use as a
 stopwatch.
 
 ## What belongs here
@@ -561,7 +561,7 @@ repository's permission settings would silently become every project's. A reposi
 ordinary by comparison: a history behind each permission, a diff to approve, and `repo status`
 reporting it like anything else.
 
-What changed is the cargo, not the reasoning. The objection was about *permissions* travelling
+What changed is the cargo, not the reasoning. The objection was about _permissions_ travelling
 without review, and permissions no longer travel this way at all — `settings.json` is gone with
 the archived repository, and the section above says what that costs. What is left is one
 document, and `repo status` does see drift in it: it is tracked in `weftspun/logbook`, which is

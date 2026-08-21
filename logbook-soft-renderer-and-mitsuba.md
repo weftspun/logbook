@@ -30,13 +30,13 @@ small non-zero contribution from all of them and coverage bleeds out to about `t
 
 One square, refined in place, outline fixed, so face count is the only variable:
 
-| faces | hard | default tau | retracted tau = 1.0 |
-| --- | --- | --- | --- |
-| 2 | 1,089 | IoU 0.972 | **IoU 0.996** |
-| 32 | 1,089 | 0.994 | 0.954 |
-| 288 | 1,089 | 1.000 | 0.799 |
-| 1,152 | 1,089 | 1.000 | 0.672 |
-| 4,608 | 1,089 | 1.000 | 0.534 |
+| faces | hard  | default tau | retracted tau = 1.0 |
+| ----- | ----- | ----------- | ------------------- |
+| 2     | 1,089 | IoU 0.972   | **IoU 0.996**       |
+| 32    | 1,089 | 0.994       | 0.954               |
+| 288   | 1,089 | 1.000       | 0.799               |
+| 1,152 | 1,089 | 1.000       | 0.672               |
+| 4,608 | 1,089 | 1.000       | 0.534               |
 
 The old constant is at its BEST on the two-face quad every test used, and degrades
 monotonically from there. `tau` is now a pixel bleed budget, `tau_for_bleed(px, n_faces)`. On
@@ -64,10 +64,10 @@ files used `_quad`, which has two faces. The tests were not weak. They were run 
 
 ## Mitsuba 3 against the torch renderer
 
-| renderer | per image | 800k images |
-| --- | --- | --- |
-| `soft_depth` + `soft_silhouette` | 3,451 ms | 767 GPU-hours |
-| torch exact z-buffer | 225 ms | 50 GPU-hours |
+| renderer                                   | per image   | 800k images       |
+| ------------------------------------------ | ----------- | ----------------- |
+| `soft_depth` + `soft_silhouette`           | 3,451 ms    | 767 GPU-hours     |
+| torch exact z-buffer                       | 225 ms      | 50 GPU-hours      |
 | **Mitsuba 3, incl. vertex update and BVH** | **1.79 ms** | **0.4 GPU-hours** |
 
 Mitsuba 3 is BSD-3-Clause, so it clears the licence bar that excludes nvdiffrast.

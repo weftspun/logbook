@@ -22,11 +22,11 @@ project serving one goal and not the other is the exception.
 
 The word is overloaded across the workspace, and one of the three is a trap:
 
-| name | what it is |
-|---|---|
-| `c:\keypoint` | a checkout of the goal manifest — a directory, replaceable |
-| `weftspun/weftspun-keypoint` | the goal manifest itself: what is in the goal, and on which side |
-| `weftspun/rf-detr-keypoint-data` | **blocklisted for training.** Validation only |
+| name                             | what it is                                                       |
+| -------------------------------- | ---------------------------------------------------------------- |
+| `c:\keypoint`                    | a checkout of the goal manifest — a directory, replaceable       |
+| `weftspun/weftspun-keypoint`     | the goal manifest itself: what is in the goal, and on which side |
+| `weftspun/rf-detr-keypoint-data` | **blocklisted for training.** Validation only                    |
 
 The third is the one to keep straight, because it is the one whose name reads like a keypoint
 training set. It is not: it carries the entire blinded holdout, and 78% of it is
@@ -45,7 +45,7 @@ in full.
 **The measurement, and why one of the two was wrong.** A fixed population is enumerated, not
 sampled, so the sweep was an enumeration: across the keypoint checkout, `weftspun/weftspun`
 appeared exactly twice outside `.repo/`, and after the fix, zero times. That number is correct
-and it answered the wrong question. The sweep ran *inside one goal checkout*, so it could only
+and it answered the wrong question. The sweep ran _inside one goal checkout_, so it could only
 see one goal, and `#9` accordingly rewrote both references to name `weftspun/weftspun-keypoint`
 alone. `#10` named both live manifests and left the rule general. The split is org-wide; a
 workspace-scoped sweep cannot see that, however exhaustively it enumerates.

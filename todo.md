@@ -58,7 +58,7 @@ reconstruction quality. Not yet implemented in either repo's server.py.
 For cases where a pose retarget (or similar pipeline) locally breaks part of a character (e.g.
 fingers in the ANNY retarget work), the fallback isn't to perfect the retarget -- it's to identify
 the broken region and fix it via a targeted image-edit (qwen-image-edit) or mesh-edit
-(interactor-voxhammer-*) pass with a text prompt describing the correct state. Not implemented as
+(interactor-voxhammer-\*) pass with a text prompt describing the correct state. Not implemented as
 a general pattern anywhere yet; the ANNY finger issue was just worked around by resting the hands,
 not fixed via this route.
 
@@ -118,9 +118,9 @@ mapped perfectly. Re-checking `joints.csv` against ANNY's real 104-bone list, **
 bones have NO row in the canonical table at all** — they are not "dropped by Godot", they are
 absent from the pivot entirely:
 
-  - all 8 twist bones: `upperarm02.L/R`, `lowerarm02.L/R`, `upperleg02.L/R`, `lowerleg02.L/R`
-  - `shoulder01.L/R` (scapula — drives shoulder-girdle silhouette on arm raise)
-  - `pelvis.L/R`
+- all 8 twist bones: `upperarm02.L/R`, `lowerarm02.L/R`, `upperleg02.L/R`, `lowerleg02.L/R`
+- `shoulder01.L/R` (scapula — drives shoulder-girdle silhouette on arm raise)
+- `pelvis.L/R`
 
 The only twist-related rows in the entire table are `LeftEyeTwist` / `RightEyeTwist`, and both
 are empty for every format. So the earlier "52/61 survive, identical across pivots" figure was
@@ -128,25 +128,25 @@ both the wrong metric AND undercounted by 12.
 
 ### Standing conclusion (format), now with an honest justification status
 
-  - internal/archival: **OpenUSD** (RFD 0053) — sublayer semantics the pose/rig/edit stack
-    already uses; can carry arbitrary extra joints as metadata
-  - deploy: **Godot GeneralSkeleton via glTF/VRM** — still the likely answer, but the
-    justification "it costs nothing" is NOT established: it rested on the discredited
-    name-coverage metric
-  - the joints no standard carries (the 9 named gaps + these 12 absent ones) ride as **USD
-    layer metadata**, per the mechanism RFD 0046 already mandates for the VRM humanoid map
+- internal/archival: **OpenUSD** (RFD 0053) — sublayer semantics the pose/rig/edit stack
+  already uses; can carry arbitrary extra joints as metadata
+- deploy: **Godot GeneralSkeleton via glTF/VRM** — still the likely answer, but the
+  justification "it costs nothing" is NOT established: it rested on the discredited
+  name-coverage metric
+- the joints no standard carries (the 9 named gaps + these 12 absent ones) ride as **USD
+  layer metadata**, per the mechanism RFD 0046 already mandates for the VRM humanoid map
 
 ### The measurement that would actually settle it (NOT YET RUN) — reuse the skin matcher
 
 No new algorithm needed: **`anny.AnnyInverter` IS the skin matcher**, and it fits to mesh
 VERTICES, not to bones — so it answers the silhouette question natively. Protocol:
 
-  1. pose an ANNY mesh with the FULL 104-bone rig (incl. the 8 twist bones) over a sweep that
-     stresses twist: forearm pronation/supination, arm raise (scapula), leg internal rotation
-  2. hand that mesh to AnnyInverter as the target, with the pose search restricted to the
-     ~52-bone deployment subset (twist bones locked at rest)
-  3. **the residual PVE in mm IS the silhouette loss** — the number we actually care about;
-     cross-check visually with silhouette IoU from the nvdiffrast renders
+1. pose an ANNY mesh with the FULL 104-bone rig (incl. the 8 twist bones) over a sweep that
+   stresses twist: forearm pronation/supination, arm raise (scapula), leg internal rotation
+2. hand that mesh to AnnyInverter as the target, with the pose search restricted to the
+   ~52-bone deployment subset (twist bones locked at rest)
+3. **the residual PVE in mm IS the silhouette loss** — the number we actually care about;
+   cross-check visually with silhouette IoU from the nvdiffrast renders
 
 Both halves already exist and are proven this session: AnnyInverter reported 2.458 mm / 2.281 mm
 (its Adam convergence floor) and the LBFGS polish closed a same-rig fit to 0.00017 mm — so any
@@ -167,7 +167,6 @@ name-matched Euler copy) is the direct evidence.
 as metadata; (3) consider upstreaming twist-bone rows to LabRCSF — their absence is a real gap
 in the pivot table, not just our problem.
 
-
 ## Logbook 2026-08-14: twist bones measured, and what SOMA-X already solved
 
 ### The measurement (RUN, locally, CPU)
@@ -179,12 +178,12 @@ the FULL 104-bone rig, then re-fit with the 22 undeployable bones LOCKED at rest
 not optimizer noise, because the same solver reached 1.7e-4 mm on a same-rig fit.
 
 | sweep                      | PVE mm | max mm |
-|----------------------------|--------|--------|
-| forearm pronation 90 deg   |  3.456 | 61.286 |
-| upper-arm twist 60 deg     |  1.385 | 33.586 |
-| arm raise (scapula) 45 deg |  1.287 | 31.599 |
-| leg internal rot 30 deg    |  0.701 | 17.202 |
-| combined                   |  2.645 | 59.885 |
+| -------------------------- | ------ | ------ |
+| forearm pronation 90 deg   | 3.456  | 61.286 |
+| upper-arm twist 60 deg     | 1.385  | 33.586 |
+| arm raise (scapula) 45 deg | 1.287  | 31.599 |
+| leg internal rot 30 deg    | 0.701  | 17.202 |
+| combined                   | 2.645  | 59.885 |
 
 **Verdict: the loss is real and large.** 61 mm peak error on forearm pronation is exactly the
 candy-wrapper collapse twist bones exist to prevent — 6 cm of silhouette on a ~1.7 m body, on
@@ -193,7 +192,7 @@ claim is now decisively falsified: name-coverage said zero cost, mesh-space says
 
 ### What SOMA-X wrote about it (studied)
 
-NVIDIA hit this and solved it *without* baking blendshapes. From `SOMA-X/docs/data_assets.md`
+NVIDIA hit this and solved it _without_ baking blendshapes. From `SOMA-X/docs/data_assets.md`
 and `docs/procedural_control_format.md`:
 
 - SOMA's rig is a **122-joint template** exposing a **77/78-joint public rig**. Twist joints are
@@ -209,7 +208,7 @@ and `docs/procedural_control_format.md`:
   reference implementations already exist.
 - Turning it off (`enable_procedural_transforms=False`) does exactly what my test did: prunes the
   procedural joints and "aggregates each removed joint's skinning weights to its nearest kept
-  parent" — SOMA treats that as the degraded *legacy* path, which is corroborating evidence that
+  parent" — SOMA treats that as the degraded _legacy_ path, which is corroborating evidence that
   the numbers above are the expected cost, not a bug in my setup.
 - Ordering note: "body pose correctives are supported **only** with procedural transforms" —
   correctives ride ON TOP of procedural twist, they do not replace it.
@@ -235,17 +234,16 @@ is that we should not bake twist at all. Revised plan:
 - ANNY is now installed locally (CPU) — this test is cheap to repeat; script at
   `$CLAUDE_JOB_DIR/tmp/twist_test.py`, worth moving into a repo
 
-
 ## Logbook 2026-08-14: Godot twist solution + full experimental apparatus
 
 ### Scale of the problem, in household terms
 
 The measured deployment loss (twist bones locked, full-rig mesh as target):
 
-| quantity | value | household scale |
-|---|---|---|
-| mean per-vertex error, forearm pronation 90 deg | **3.46 mm** | a stack of ~4.5 credit cards (0.76 mm each), or 2 stacked US pennies |
-| **peak** per-vertex error, same motion | **61.3 mm** | **about the width of an adult wrist (55-60 mm)** -- also ~a soda-can diameter (66 mm), or a golf ball and a half |
+| quantity                                        | value       | household scale                                                                                                  |
+| ----------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| mean per-vertex error, forearm pronation 90 deg | **3.46 mm** | a stack of ~4.5 credit cards (0.76 mm each), or 2 stacked US pennies                                             |
+| **peak** per-vertex error, same motion          | **61.3 mm** | **about the width of an adult wrist (55-60 mm)** -- also ~a soda-can diameter (66 mm), or a golf ball and a half |
 
 The peak number is the damning one: the mesh surface is displaced by roughly the entire
 thickness of the limb it is supposed to be hugging, on the most ordinary motion there is
@@ -264,9 +262,9 @@ algorithms in the abstract; I never measured what Godot does.
 
 1. `SkeletonModifier3D::get_roll_angle()` -- the shared helper -- IS a true quaternion
    swing-twist projection:
-       dot = q.xyz . roll_axis
-       roll_component = Quaternion(roll_axis * dot, q.w); normalize
-       angle = 2 * acos(clamp(roll_component.w)); signed by direction
+   dot = q.xyz . roll_axis
+   roll_component = Quaternion(roll_axis _ dot, q.w); normalize
+   angle = 2 _ acos(clamp(roll_component.w)); signed by direction
    That is exactly the algorithm I reimplemented. Godot does NOT read an Euler channel here, so
    it does NOT gimbal at large swing.
 
@@ -306,17 +304,18 @@ Durable copies: `godot-soma-twist/experiments/` (originals lived in an ephemeral
 
 **A. Silhouette-loss measurement** -- `experiments/anny_twist_loss.py`, run
 `python anny_twist_loss.py`. Logic:
-  1. `model = anny.Anny(local_changes="default", facial_actions="all").to(dtype=torch.float64)`
-  2. undeployable set = every bone matching `upperarm02|lowerarm02|upperleg02|lowerleg02|
-     shoulder01|pelvis.|spine03|spine04|metacarpal` -> 22 bones; `free_ids` = the rest
-  3. target: pose the FULL rig with a twist-stressing rotvec (e.g. `lowerarm02.L` = 90 deg
-     about local Z for pronation) -> `model(pose_parameters=...)["vertices"]`
-  4. fit: optimise ONLY `rv_free` (undeployable bones pinned at identity) with
-     `torch.optim.LBFGS(lr=1.0, max_iter=250, history_size=50, line_search_fn="strong_wolfe")`,
-     loss = MSE over vertices, 3 outer steps
-  5. report `torch.norm(pred - target, dim=-1) * 1000` -> mean and max in mm
-  Control that makes the number trustworthy: the SAME solver reaches 1.7e-4 mm when the twist
-  bones are NOT locked, so any residual is representational, not convergence.
+
+1. `model = anny.Anny(local_changes="default", facial_actions="all").to(dtype=torch.float64)`
+2. undeployable set = every bone matching `upperarm02|lowerarm02|upperleg02|lowerleg02|
+shoulder01|pelvis.|spine03|spine04|metacarpal` -> 22 bones; `free_ids` = the rest
+3. target: pose the FULL rig with a twist-stressing rotvec (e.g. `lowerarm02.L` = 90 deg
+   about local Z for pronation) -> `model(pose_parameters=...)["vertices"]`
+4. fit: optimise ONLY `rv_free` (undeployable bones pinned at identity) with
+   `torch.optim.LBFGS(lr=1.0, max_iter=250, history_size=50, line_search_fn="strong_wolfe")`,
+   loss = MSE over vertices, 3 outer steps
+5. report `torch.norm(pred - target, dim=-1) * 1000` -> mean and max in mm
+   Control that makes the number trustworthy: the SAME solver reaches 1.7e-4 mm when the twist
+   bones are NOT locked, so any residual is representational, not convergence.
 
 **B. Swing-twist correctness** -- `experiments/swingtwist_check.py`, run
 `python swingtwist_check.py`. Pure-numpy mirror of the GDScript, asserting: pure twist recovered
@@ -340,7 +339,6 @@ headless run to complete is the next task and a prerequisite before trusting the
   quantify how much of the 61.3 mm the modifier recovers (target: well under the 3.46 mm mean)
 - wire the sidecar: parse SOMA's `SOMA_procedural_transforms.json` (or our ANNY equivalent) to
   configure modifier instances, rather than hand-placing them per rig
-
 
 ## Logbook 2026-08-14: identity table built (23k), and why not .b3d / not GNM
 
@@ -368,10 +366,10 @@ alarming -- height never exceeding 0.67 of its range, weight median 0.915 -- whi
 biased sampler. Decoding 300 identities to actual meshes and measuring stature showed the
 opposite:
 
-| population | p05 | p50 | p95 |
-|---|---|---|---|
-| adults (age > 0.5, n=260) | 1.536 m | 1.709 m | 1.879 m |
-| all ages | 1.161 m | 1.689 m | (min 0.812 m, max 2.008 m) |
+| population                | p05     | p50     | p95                        |
+| ------------------------- | ------- | ------- | -------------------------- |
+| adults (age > 0.5, n=260) | 1.536 m | 1.709 m | 1.879 m                    |
+| all ages                  | 1.161 m | 1.689 m | (min 0.812 m, max 2.008 m) |
 
 That matches the global adult reference (~1.50-1.90 m) and children are genuinely present down
 to 0.81 m. The parameter -> stature map is non-linear and age-conditioned, so the parameter
@@ -389,7 +387,6 @@ all 23k rows. Each independent draw is now its own subject.
 
 **Next**: poses relation (sample frames from 100STYLE + O3DE + balance-disturbance, carrying
 clip/frame provenance and license lineage), then scenes = identity x pose x environment.
-
 
 ## Logbook 2026-08-14: GNM loaded; ANNY facial actions ARE ARKit-52 (exact)
 
@@ -420,7 +417,7 @@ metres; call signature `(identity, expression, rotations, translation)`; landmar
 The method is right (fit, do not learn) and has two precedents: SOMA-X's own extension
 mechanism is correspondence-based ("OBJ pairs used to compute the mesh correspondence to SOMA
 topology"), and our LBFGS/AnnyInverter vertex fitting already reaches 1.7e-4 mm on a same-rig
-target. What is missing is the *correspondence data*:
+target. What is missing is the _correspondence data_:
 
 - **ANNY ships only COCO-17 BODY keypoints** (`data/keypoints/coco.pth`: nose, eyes, ears,
   shoulders, elbows, wrists, hips...). No facial landmark scheme.
@@ -451,18 +448,19 @@ clone), `anny` 0.6.0, `trimesh`, `scipy`. GNM v3 HEAD assets ship inside the clo
 (`gnm/shape/data/versions/v3_0`), no download.
 
 **A. ARKit-52 equality test** (the headline result), reproduce with:
-    m = anny.Anny(local_changes="default", facial_actions="all")
-    set(m.facial_action_labels) == ARKIT_52_SET      # -> True, symmetric difference empty
+m = anny.Anny(local_changes="default", facial_actions="all")
+set(m.facial_action_labels) == ARKIT_52_SET # -> True, symmetric difference empty
 The ARKit-52 name list is inlined in the check; compare both directions, since a one-sided
 `issubset` would hide extra ANNY actions.
 
 **B. Head alignment ladder** -- `Desktop/gnm-anny-headfit/headfit.py --rung {0,1,2}`
 (rung 0 = 1 head, rung 1 = 4 ethnicities, rung 2 = 16; Gall's law, never batch first).
-  * `y_up_to_z_up(v)` -> `(x, -z, y)`; `gnm_gender_from_anny()` -> the inversion
-  * `procrustes()` = closed-form Umeyama similarity (no iteration, no training)
-  * `anny_head_vertices()` derives the head region as vertices with >0.5 skin weight on the
-    `head` bone -- computed, not a hand-authored index list, so it survives an ANNY version bump
-  * residual = KD-tree nearest-neighbour distance, ANNY head verts -> aligned GNM surface
+
+- `y_up_to_z_up(v)` -> `(x, -z, y)`; `gnm_gender_from_anny()` -> the inversion
+- `procrustes()` = closed-form Umeyama similarity (no iteration, no training)
+- `anny_head_vertices()` derives the head region as vertices with >0.5 skin weight on the
+  `head` bone -- computed, not a hand-authored index list, so it survives an ANNY version bump
+- residual = KD-tree nearest-neighbour distance, ANNY head verts -> aligned GNM surface
 
 **RUNG 0 RESULT (bbox-corner alignment, the crude baseline): mean 21.97 mm, p50 21.38,
 p95 42.63, max 52.92.** Do NOT read this as shape disagreement -- diagnosis is region mismatch:
@@ -483,7 +481,6 @@ class of trap as the gender inversion.
   the current constructor
 - ARKit-52 equality means expression capture can be wired NOW, independent of the shape work
 
-
 ## Logbook 2026-08-14: priority-1 twist fix -- DIAGNOSIS CHANGED
 
 ### What we thought the problem was
@@ -498,11 +495,11 @@ ratio?".
 bone barely moves the forearm skin:
 
 | ratio (twist bone share) | skin twist at x=0.5 | at x=0.8 | at x=0.95 | RMS vs ideal 90x |
-|---|---|---|---|---|
-| 0.00 (locked) | 0.0 deg | 0.0 | 2.8 | 51.3 |
-| 0.489 | 2.6 | 16.1 | 27.7 | 40.4 |
-| 0.936 | 4.4 | 22.1 | 25.6 | **39.4 (best)** |
-| 1.00 (all on twist bone) | 4.7 | 22.8 | 24.6 | 39.4 |
+| ------------------------ | ------------------- | -------- | --------- | ---------------- |
+| 0.00 (locked)            | 0.0 deg             | 0.0      | 2.8       | 51.3             |
+| 0.489                    | 2.6                 | 16.1     | 27.7      | 40.4             |
+| 0.936                    | 4.4                 | 22.1     | 25.6      | **39.4 (best)**  |
+| 1.00 (all on twist bone) | 4.7                 | 22.8     | 24.6      | 39.4             |
 
 Ideal for a 90 deg pronation is `angle(x) = 90x`, i.e. 45 deg at mid-forearm and ~86 at the
 wrist. Even giving the twist bone 100% of the rotation yields **22.8 deg where 72 deg is
@@ -520,13 +517,13 @@ but no value in that range produces anatomically correct deformation.
 
 Locked-twist error by body region, 90 deg pronation, per-vertex:
 
-| region | verts | mean | peak |
-|---|---|---|---|
-| upper arm | 604 | **0.00 mm** | 0.00 |
-| torso | 1356 | **0.00 mm** | 0.00 |
-| forearm | 482 | 9.16 mm | 75.15 mm |
-| wrist/hand | 128 | 37.14 mm | 78.15 mm |
-| **fingers** | 3076 | **38.06 mm (~a golf ball)** | 76.95 mm (~a soda can) |
+| region      | verts | mean                        | peak                   |
+| ----------- | ----- | --------------------------- | ---------------------- |
+| upper arm   | 604   | **0.00 mm**                 | 0.00                   |
+| torso       | 1356  | **0.00 mm**                 | 0.00                   |
+| forearm     | 482   | 9.16 mm                     | 75.15 mm               |
+| wrist/hand  | 128   | 37.14 mm                    | 78.15 mm               |
+| **fingers** | 3076  | **38.06 mm (~a golf ball)** | 76.95 mm (~a soda can) |
 
 Whole-mesh mean is only 9.20 mm -- **the mesh average understates the hand error 4x**, because
 1356 torso vertices sitting at exactly zero dilute it. For a mocap pipeline the extremity
@@ -588,13 +585,13 @@ the case that matters most, since ANNY is the identity model in the SOMA list th
 specifically noted as well-suited to children, so we cannot escape this by swapping
 models.
 
-| case | forearm mm | fingers mm | hand deg (of 90) |
-|---|---|---|---|
-| default    | 18.3 -> **4.5** | 14.7 -> **1.5** | 74.6 -> **88.6** |
-| small female | 13.8 -> **3.4** | 12.2 -> **1.3** | 74.4 -> **88.6** |
-| large male | 27.8 -> **7.7** | 22.5 -> **1.9** | 74.5 -> **88.6** |
-| child      |  9.7 -> **2.4** |  6.8 -> **0.6** | 74.4 -> **88.6** |
-| 135 deg    | 28.8 -> **9.4** | 19.4 -> **1.4** | 121.0 -> **134.2** |
+| case         | forearm mm      | fingers mm      | hand deg (of 90)   |
+| ------------ | --------------- | --------------- | ------------------ |
+| default      | 18.3 -> **4.5** | 14.7 -> **1.5** | 74.6 -> **88.6**   |
+| small female | 13.8 -> **3.4** | 12.2 -> **1.3** | 74.4 -> **88.6**   |
+| large male   | 27.8 -> **7.7** | 22.5 -> **1.9** | 74.5 -> **88.6**   |
+| child        | 9.7 -> **2.4**  | 6.8 -> **0.6**  | 74.4 -> **88.6**   |
+| 135 deg      | 28.8 -> **9.4** | 19.4 -> **1.4** | 121.0 -> **134.2** |
 
 Forearm error ~4x better, fingers ~10x better (a golf ball down to a credit card's
 thickness). The residual grows with angle, as expected -- skinning error is
@@ -677,17 +674,17 @@ certifying a model nothing ships.
 
 Wrist-driven 90 deg pronation, skin roll near the wrist (ideal 78.8 deg):
 
-| arm | raw mocap | shipping |
-|---|---|---|
-| L | 12.9 deg | **84.4 deg** |
-| R | 13.1 deg | **85.2 deg** |
+| arm | raw mocap | shipping     |
+| --- | --------- | ------------ |
+| L   | 12.9 deg  | **84.4 deg** |
+| R   | 13.1 deg  | **85.2 deg** |
 
 Rest pose provably untouched: `max |rest_vertices stock - fixed| = 0.000000 mm`. The
 re-weighting only moves mass between two bones that are both at identity at rest, so
 this is a property of the fix, not a lucky measurement.
 
 **The gate took three revisions, and that is the transferable lesson.** The first two
-passed on a rig *known* to be broken:
+passed on a rig _known_ to be broken:
 
 1. dominance-share proxy -- passed outright
 2. single distal band, driven from the TWIST BONE -- 66.9 of an ideal 78.8. Wrong edge:
@@ -724,12 +721,12 @@ traffic was asleep). Two instances of the same error were live in our pipeline.
 A sampled audit catches only defects larger than ~3/n of the population (95%
 detection). Our default was `--sample 600`, often run at 300:
 
-| sample | floor | identities | images of 800k |
-|---|---|---|---|
-| 300 | 10,000 ppm | 230 | 8,000 |
-| 600 | 5,000 ppm | 115 | 4,000 |
-| 3,000 | 1,000 ppm | 23 | 800 |
-| **23,000 (full)** | **43 ppm** | **1** | **35** |
+| sample            | floor      | identities | images of 800k |
+| ----------------- | ---------- | ---------- | -------------- |
+| 300               | 10,000 ppm | 230        | 8,000          |
+| 600               | 5,000 ppm  | 115        | 4,000          |
+| 3,000             | 1,000 ppm  | 23         | 800            |
+| **23,000 (full)** | **43 ppm** | **1**      | **35**         |
 
 So a defect touching 23 identities -- 800 images -- slipped through 95% of the time
 while the audit printed all-PASS. **Sampling was never a considered trade; it was an
@@ -738,8 +735,8 @@ precedes hours of GPU time. The audit now decodes all 23,000, prints its own det
 floor, and FAILS when asked to certify below what its sample can resolve (verified:
 `--sample 300` now fails rather than passing quietly).
 
-The deeper point: ppm is a rate over an *unbounded stream*, where you must estimate.
-Ours is a *fixed finite population*, where you can **enumerate**. Enumeration beats any
+The deeper point: ppm is a rate over an _unbounded stream_, where you must estimate.
+Ours is a _fixed finite population_, where you can **enumerate**. Enumeration beats any
 sampled rate, and we were estimating for no reason.
 
 ### 2. Quality was a mean over a denominator that does not vary
@@ -750,11 +747,11 @@ at exactly 0.00 mm, so the mesh mean reads 9.2 mm while fingers are off by ~a go
 exceedance RATE against a STATED tolerance, over ARM geometry only, against a raw-mocap
 baseline (an absolute rate with no reference is not interpretable):
 
-| tolerance | raw mocap | shipping | improvement |
-|---|---|---|---|
-| > 5 mm | 749,830 ppm | 347,415 ppm | 2x |
-| > 10 mm | 513,831 ppm | 181,326 ppm | 3x |
-| > 20 mm | 260,820 ppm | **44,189 ppm** | **6x** |
+| tolerance | raw mocap   | shipping       | improvement |
+| --------- | ----------- | -------------- | ----------- |
+| > 5 mm    | 749,830 ppm | 347,415 ppm    | 2x          |
+| > 10 mm   | 513,831 ppm | 181,326 ppm    | 3x          |
+| > 20 mm   | 260,820 ppm | **44,189 ppm** | **6x**      |
 
 worst single arm vertex 83.0 mm (~1.3 soda cans) -> 44.6 mm (~a golf ball).
 
@@ -770,7 +767,7 @@ zone that twist should not move anyway.
 
 **ppb is undefined at image scale.** 800,000 images means one image IS 1.25 ppm; there
 is no rate between zero and that. Reaching a billion images would cost **2.1-15.7
-GPU-years and 188 TB**, and would be pointless for a fixed population. ppb *is* well
+GPU-years and 188 TB**, and would be pointless for a fixed population. ppb _is_ well
 defined per-vertex: 800k x 13,718 = **11.0 billion vertex-instances, so 1 ppb = 11
 vertices** -- that is the granularity at which our quality numbers can honestly carry
 three more digits.
@@ -788,12 +785,12 @@ geometry wherever that code is absent.
 `lowerarm02` rotation channels next to the wrist channels rather than deferring to Godot's
 `BoneTwistDisperser3D`.
 
-| delivery path | code-free twist? |
-|---|---|
-| baked clip, direct skeleton | yes -- channels survive |
-| baked clip, morph-target bake | yes -- survives any skeleton path |
-| humanoid retarget | **no** -- profile has no twist slots; channels dropped |
-| live / interactive mocap | **no** -- needs a driver by definition |
+| delivery path                 | code-free twist?                                       |
+| ----------------------------- | ------------------------------------------------------ |
+| baked clip, direct skeleton   | yes -- channels survive                                |
+| baked clip, morph-target bake | yes -- survives any skeleton path                      |
+| humanoid retarget             | **no** -- profile has no twist slots; channels dropped |
+| live / interactive mocap      | **no** -- needs a driver by definition                 |
 
 **Consequence that changes priorities.** The LabRCSF naming gap (12 ANNY bones with no
 canonical name: 8 twist + shoulder01.L/R + pelvis.L/R) was logged as a documentation
@@ -868,10 +865,10 @@ them is in the repo and pushed.
 only difference, medians of 3 runs x 3 prompts through an unmodified
 `qwen38-mtp/probe.py`.
 
-| arm | overall | P1 code | P2 prose | P3 code | acceptance |
-|---|---|---|---|---|---|
-| spec off (floor) | 34.4 | 34.5 | 34.5 | 34.3 | — |
-| draft-mtp n-max 2 | 57.0 | 62.0 | 46.5 | 57.0 | 0.56–0.84 |
+| arm               | overall | P1 code | P2 prose | P3 code | acceptance |
+| ----------------- | ------- | ------- | -------- | ------- | ---------- |
+| spec off (floor)  | 34.4    | 34.5    | 34.5     | 34.3    | —          |
+| draft-mtp n-max 2 | 57.0    | 62.0    | 46.5     | 57.0    | 0.56–0.84  |
 
 +65.7% median. Baseline spread 34.3–34.6 across all nine runs, so the gain is
 far outside the noise. Negative control: the MTP arm logs 921 accepted of 1050

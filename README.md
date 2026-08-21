@@ -10,16 +10,16 @@ is the engineering record itself, including blocklist rationale and licensing ju
 about public datasets — a reader who knows why a source was excluded is better off than
 one who only sees the exclusion.
 
-| file | what it holds |
-|---|---|
-| `todo.md` | the running logbook — dated entries, queued work, standing constraints |
-| `logbook-rfd0016-model-repos.md` | RFD 0016: one standalone repo per model, and the reranking |
-| `PITFALLS.md` | recurring failure modes — each one a mistake actually made here, what it cost, and the mechanism that now catches it |
-| `logbook-soft-renderer-and-mitsuba.md` | the soft renderer's three mis-scaled constants, and Mitsuba 3 against it |
-| `logbook-cineform-movie-writer.md` | CineForm in Godot: codec precision, vendoring frictions, and what recording costs |
-| `KEYPOINTS.md` | what the keypoint goal is named for, and the three things that share the name |
-| `check_comment_density.py` | gate: a change must match the comment density of the code it edits |
-| `scripts/` | the apparatus behind the entries, kept so a measurement can be re-run rather than believed |
+| file                                   | what it holds                                                                                                        |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `todo.md`                              | the running logbook — dated entries, queued work, standing constraints                                               |
+| `logbook-rfd0016-model-repos.md`       | RFD 0016: one standalone repo per model, and the reranking                                                           |
+| `PITFALLS.md`                          | recurring failure modes — each one a mistake actually made here, what it cost, and the mechanism that now catches it |
+| `logbook-soft-renderer-and-mitsuba.md` | the soft renderer's three mis-scaled constants, and Mitsuba 3 against it                                             |
+| `logbook-cineform-movie-writer.md`     | CineForm in Godot: codec precision, vendoring frictions, and what recording costs                                    |
+| `KEYPOINTS.md`                         | what the keypoint goal is named for, and the three things that share the name                                        |
+| `check_comment_density.py`             | gate: a change must match the comment density of the code it edits                                                   |
+| `scripts/`                             | the apparatus behind the entries, kept so a measurement can be re-run rather than believed                           |
 
 ## How entries are written
 
