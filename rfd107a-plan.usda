@@ -115,6 +115,115 @@ where two share a model overstates the spread."""
     # checker asserts every dependency has a strictly lower order. A graph that disagrees
     # with its own numbering is the defect this representation exists to catch.
     # ---------------------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------
+    # What was measured rather than argued. Each finding names the run that produced it,
+    # so a reader can repeat it instead of believing it. Dated absolutely, because "last
+    # week" stops meaning anything the moment this file is read out of order.
+    # ---------------------------------------------------------------------------------
+    def Scope "Findings"
+    {
+        def "F01_RendererEmits23PointsNot104" (
+            doc = """The renderer that exists labels 23 points. The plan needs 104.
+
+`render_corpus.py --out <dir> --views 4 --stick` completed in 14 seconds on this desk and
+wrote, per view, a 16-bit depth PNG, `mesh_NN.npz`, `cam_NN.json`, `kp_NN.npz` and a stick
+figure, with one `summary.json` over the four. `summary.json` reports `keypoints: 23`:
+COCO-17 plus `left_big_toe`, `right_big_toe`, `left_small_toe`, `right_small_toe`,
+`left_heel`, `right_heel`. That is `anny/data/keypoints/coco.pth` in full, and it is what a
+weight matrix exists for.
+
+So the 370 lines are correct as far as they reach, and they reach 23 of the 104. The other
+81 joints have no weight vector, which makes them the work rather than a wiring detail."""
+        )
+        {
+            custom uniform token subject = "T02_Renderer"
+            custom string date = "2026-08-22"
+            custom string evidence = "render_corpus.py --views 4 --stick, summary.json keypoints=23"
+            custom int keypointsEmitted = 23
+        }
+
+        def "F02_NoArkitCoefficientsAndNoMasks" (
+            doc = """Two of the renderer's four required outputs are absent, not partial.
+
+The plan's row asks for 104 joints, 52 ARKit coefficients, masks from hm08 groups, cameras,
+mesh and PBR. Searching `render_corpus.py` for `arkit`, `facial_action`, `segmentation`,
+`hm08` and `group_id` returns one hit, and it is a comment about vertex order. No expression
+coefficient and no part mask is written by any path in the file.
+
+Recorded because "the renderer exists" and "the renderer emits what this corpus needs" are
+different claims, and the first was about to be read as the second."""
+        )
+        {
+            custom uniform token subject = "T02_Renderer"
+            custom string date = "2026-08-22"
+            custom string evidence = "grep -in 'arkit|facial_action|segmentation|hm08|group_id' render_corpus.py -> 1 hit, a comment"
+            custom string[] absent = ["52 ARKit coefficients", "hm08 segmentation masks"]
+        }
+
+        def "F03_VisibilityIsAnInteriorZTest" (
+            doc = """Visibility is dominated by state 1, and the reason is semantic.
+
+Four views returned, as visible / occluded / out of frame: 8/15/0, 4/19/0, 8/15/0, 9/14/0.
+Zero out of frame in every view, and the occluded state carrying two thirds of the points.
+
+The arithmetic is right. A joint is an interior point, so z-testing it against the rendered
+depth compares it with the surface in front of it, and the surface is nearly always in
+front. But COCO's `visible` means an annotator could see the body part, not that the joint's
+3D position was unoccluded. A model trained on these flags and evaluated on real photographs
+would be learning a different meaning of the word than the labels it is scored against.
+
+This lands on the int8 attribute T06 is meant to settle, so the three states want defining
+against COCO's convention rather than inheriting whatever the z-test returns."""
+        )
+        {
+            custom uniform token subject = "T06_SchemaCompletion"
+            custom string date = "2026-08-22"
+            custom string evidence = "summary.json visibility_counts over 4 views: 8/15/0, 4/19/0, 8/15/0, 9/14/0"
+            custom bool decisionOutstanding = 1
+        }
+
+        def "F04_PackagedPixal3dReturnsNoLatent" (
+            doc = """The Pixal3D we packaged returns a decoded mesh, so the latent plan has
+no interface to stand on yet.
+
+RFD 1028's `server.py` shells out to upstream's own entry point,
+`inference.py --image <in> --output <glb>`, and `predict` returns `{glb, layer}`: a GLB and
+a USD layer written from it. The SLAT never leaves upstream's process.
+
+RFD 107a's layer-extraction design masks in the latent -- "tokens, not meshes", with
+`a_splice` and VoxHammer operating there -- and it says Pixal3D "emits SLAT natively, so
+nothing is inverted". That is true of upstream and not of the packaged server. Reading the
+GLB back would be `encode(decode(z))`, which the latents rule blocklists by name.
+
+So getting tokens is new work: something has to drive the three-stage cascade directly and
+return them. It is not a configuration problem and no amount of hardware settles it."""
+        )
+        {
+            custom uniform token subject = "pixal3d"
+            custom string date = "2026-08-22"
+            custom string evidence = "2-contract/request_for_discussion/1028-pixal3d-image-to-textured-mesh/server.py, _run_upstream and predict"
+        }
+
+        def "F05_Pixal3dIsUnplaced" (
+            doc = """RFD 107a's Scope names `3-interactor/pixal3d-image-to-textured-mesh`
+and no such project is in the goal manifest.
+
+`repo list` has no Pixal3D entry and `default.xml` has no matching `<project>`. What exists
+is RFD 1028 -- a `Dockerfile`, a `server.py` and a `test_input.json` -- inside the
+request-for-discussion checkout. An RFD describing a service is not the service placed on a
+side, and the Sides rule says placement happens when a project is added rather than later.
+
+The same gap as the PBR bake's, which /Rfd107a/Plan/T03_PbrBake already records with
+`repositoryPlacedInManifest = 0`."""
+        )
+        {
+            custom uniform token subject = "sides"
+            custom string date = "2026-08-22"
+            custom string evidence = "repo list | grep -i pixal -> nothing; default.xml has no matching project"
+            custom bool repositoryPlacedInManifest = 0
+        }
+    }
+
     def Scope "Plan"
     {
         def "T01_PoseLibraryPlausibility" (
