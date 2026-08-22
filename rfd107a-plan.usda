@@ -136,6 +136,20 @@ generated."""
             custom string measurement = "of twenty projected poses, how many a character artist would draw"
             custom bool redirectsThePlan = 1
             custom string[] apparatus = ["extract_poses.py", "camera arithmetic"]
+            custom string cff = """
+- type: software
+  title: extract_poses.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/dataflow-coco-gemx
+  notes: 194 lines. World-space joint positions from the licence-clean clips, convention-free.
+- type: software
+  title: keypoint_render.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/logbook
+  notes: 318 lines, scripts/. Projects the joints and draws them coloured by See-Through layer, hollow when occluded. This is the apparatus the check asks for.
+"""
             rel dependsOn = []
         }
 
@@ -148,7 +162,18 @@ is the basemesh space, while `topology="anny"` returns the 13,718-vertex body su
 would fail to multiply; the map between the two is measured rather than assumed
 (`body_index = searchsorted(ref, basemesh_index)`, maximum positional difference 0.0
 exactly). And the nose and both ears have no bone, so they need fixed mesh vertices, which
-is why `topology_id` is a foreign key rather than a label."""
+is why `topology_id` is a foreign key rather than a label.
+
+THE STATE SAYS BUILD AND THE POINTERS BELOW DISAGREE. `render_corpus.py` is 370 lines
+already emitting image, keypoints and mesh from a posed ANNY, and `render_image.py` writes
+the depth pass from the same camera. RFD 107a's table says "Nothing turns a posed mesh into
+a labelled frame", which was true when it was written; the work landed since, under RFD
+0122's rung 1.
+
+The state stays `build` rather than being flipped on the strength of a file existing. What
+nobody has checked is whether that renderer emits everything this corpus needs -- the 52
+ARKit coefficients, the hm08 masks and the camera parameters, per frame, in the schema
+below. Reading the two against each other is the next thing to do here, and it is cheap."""
         )
         {
             custom int order = 2
@@ -161,6 +186,26 @@ is why `topology_id` is a foreign key rather than a label."""
             # material; what needs the bake is a frame anybody keeps, which is why that
             # edge lands on T07 rather than here. The first version of this file put it
             # here and made the numbering disagree with its own graph.
+            custom string cff = """
+- type: software
+  title: render_corpus.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/dataflow-coco-gemx
+  notes: 370 lines. Image, keypoint positions and mesh from a posed ANNY, with depth and camera as intermediates. Written as RFD 0122 rung 1.
+- type: software
+  title: render_image.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/dataflow-coco-gemx
+  notes: 164 lines. The depth pass, 16-bit PNG, from the camera that projected the keypoints. Runs inside Blender and recomputes no keypoint.
+- type: software
+  title: export_hm08_usd.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/hm08-partition
+  notes: 437 lines. The topology and its groups as a validated USD partition, which is where the renderer gets its part semantics.
+"""
             rel dependsOn = [</Rfd107a/Plan/T01_PoseLibraryPlausibility>]
         }
 
@@ -196,6 +241,12 @@ the record. An unplaced project is the drift the six words exist to stop."""
             custom string repositoryOrg = "https://github.com/chibifire-stages"
             custom uniform token repositoryVisibility = "public"
             custom bool repositoryPlacedInManifest = 0
+            custom string cff = """
+# Nothing points here yet, and the absence is the entry.
+# The material this bakes ships inside the `anny` package as
+# node_trees/enhanced_skin.json with sss.png beside it, which is a
+# dependency rather than a repository on a side.
+"""
             rel dependsOn = [</Rfd107a/Plan/T01_PoseLibraryPlausibility>]
         }
 
@@ -215,6 +266,14 @@ appearances cannot enter a corpus."""
             custom string title = "Condition 1 on the Qwen path"
             custom string measurement = "every returned frame carries its checkpoint hash and its instruction"
             custom string[] blocks = ["photoreal appearance", "colour sketch appearance"]
+            custom string cff = """
+- type: software
+  title: server.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/cyclegan-style-transfer
+  notes: 158 lines. Returns checkpoint_sha256 per result, which is the pattern the Qwen path owes. The reference implementation, not the thing to change.
+"""
             rel dependsOn = []
         }
 
@@ -238,6 +297,11 @@ moves every joint."""
             custom string title = "Find the strength that keeps the pose and still looks like a sketch"
             custom string measurement = "joint drift against the source render, swept over strength"
             custom bool mayBeEmpty = 1
+            custom string cff = """
+# No code. The sweep does not exist, and the interface it would drive
+# (image, instruction, strength, steps, seed) belongs to a server that is
+# not a project in this goal manifest.
+"""
             rel dependsOn = [</Rfd107a/Plan/T04_QwenCheckpointHash>]
         }
 
@@ -252,14 +316,32 @@ OCCLUDED. Real datasets guess at the middle state or omit it; a render knows it.
 
 `topology_id` is a foreign key because a `vertex_id` means nothing without one — the two
 ANNY topologies share zero vertices, measured in both directions. Root translation stays
-absent: it follows from `constraints` and the chain, so a column for it would be
-derivable."""
+absent: it follows from `constraints` and the chain, so a column for it would be derivable.
+
+SMALLER THAN IT READS. `anny_render_schema.py` is 384 lines and already defines the
+relations, sized for roughly 800k images across 23k identities. What is outstanding is two
+attributes, `visibility` as int8 and `topology_id`, not a schema that does not exist. Check
+the file before treating this as more than that."""
         )
         {
             custom int order = 6
             custom uniform token state = "build"
             custom string title = "visibility int8, and topology_id as a foreign key"
             custom string measurement = "no NULLs and no derivable columns, ETNF holds"
+            custom string cff = """
+- type: software
+  title: anny_render_schema.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/dataflow-coco-gemx
+  notes: 384 lines. The ETNF schema itself, sized for ~800k images across ~23k identities, fixed first because restarting is what costs.
+- type: software
+  title: coco_zip_to_etnf.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/dataflow-coco-gemx
+  notes: 178 lines. Real COCO into the same normal form, so the two sources meet as one schema.
+"""
             rel dependsOn = [</Rfd107a/Plan/T01_PoseLibraryPlausibility>]
         }
 
@@ -281,6 +363,32 @@ provenance on it."""
             custom string title = "Verify before training, not after"
             custom string measurement = "frames passed and frames discarded, both counted and both reported"
             custom string[] apparatus = ["silhouette.py", "depth_term.py", "soma_referee.py"]
+            custom string cff = """
+- type: software
+  title: silhouette.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/pose-consensus
+  notes: 585 lines, python/. The silhouette term.
+- type: software
+  title: depth_term.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/pose-consensus
+  notes: 280 lines, python/, with test_depth_term.py at 225 lines beside it.
+- type: software
+  title: soma_referee.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/pose-consensus
+  notes: 384 lines, python/. Fits the generated result and confirms the body matches the pose that conditioned it.
+- type: software
+  title: corpus_defect_rate.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/dataflow-coco-gemx
+  notes: 179 lines. What a discard rate gets reported against.
+"""
             rel dependsOn = [
                 </Rfd107a/Plan/T02_Renderer>,
                 </Rfd107a/Plan/T03_PbrBake>,
@@ -302,6 +410,26 @@ own train and test, and 78% of it is licence-dirty."""
             custom uniform token state = "build"
             custom string title = "One head on heterogeneous annotation"
             custom string measurement = "loss masked per source, and which points each source scored"
+            custom string cff = """
+- type: software
+  title: gen_coco_dataset.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/rf-detr-cpp
+  notes: 96 lines, gen_reference/. The COCO-format bridge.
+- type: software
+  title: gen_reference_keypoints.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/rf-detr-cpp
+  notes: 101 lines, gen_reference/.
+- type: software
+  title: gen_reference_loss.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/rf-detr-cpp
+  notes: 85 lines, gen_reference/. The reference loss a masked run has to reproduce before it is believed.
+"""
             rel dependsOn = [
                 </Rfd107a/Plan/T06_SchemaCompletion>,
                 </Rfd107a/Plan/T07_VerificationLoop>,
@@ -319,6 +447,14 @@ own train and test, and 78% of it is licence-dirty."""
             custom string title = "GGUF, and the head from 17 to 104"
             custom string measurement = "port output against the trained head, per keypoint"
             custom string[] apparatus = ["scripts/convert_keypoints_to_gguf.py"]
+            custom string cff = """
+- type: software
+  title: convert_keypoints_to_gguf.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/rf-detr-cpp
+  notes: 97 lines, scripts/. Written against a COCO-17 head, so the 104-point head is what it has to be re-pointed at.
+"""
             rel dependsOn = [</Rfd107a/Plan/T08_MaskedTraining>]
         }
 
@@ -337,6 +473,14 @@ illustrations and this set does not supply them."""
             custom uniform token state = "build"
             custom string title = "Score on real photographs, shared points apart from render-only"
             custom string measurement = "the 14 shared points, reported beside the floor, on 523 held-out images"
+            custom string cff = """
+- type: software
+  title: filter_coco_licenses.py
+  authors:
+  - name: weftspun
+  repository-code: https://github.com/weftspun/dataflow-coco-gemx
+  notes: 119 lines. The filter that defines the blinded holdout, so it decides which images this may be scored on.
+"""
             rel dependsOn = [</Rfd107a/Plan/T09_GgufAndHead>]
         }
     }
