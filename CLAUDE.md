@@ -259,6 +259,7 @@ Sources excluded from corpora, with the reason:
 | `caldata_*_jc.parquet`                             | pre-cut derivatives; use originals                                                                                                  |
 | EasyDiffusion outputs, seethrough PSDs             | secondary generation                                                                                                                |
 | **Blender**                                        | renders are not reproducible across versions — see below                                                                            |
+| **BRIA RMBG**                                      | gated and non-commercial — see below                                                                                                |
 | `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
 | **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
 | **`uv` for project environments**                  | an environment nothing declares and nobody can rebuild — use `pixi`, see below                                                      |
@@ -399,6 +400,37 @@ and it now needs a renderer that a `pixi.toml` can pin.
 The replacement is not named here, because naming one without measuring it is how the last
 unpinnable dependency arrived. What a candidate has to show: it installs from a lockfile, it
 renders the same bytes twice on two machines, and the check for that ships with it.
+
+### BRIA RMBG is blocklisted, and we already own the alternative
+
+`briaai/RMBG-2.0` removes an image background, and Pixal3D's `preprocess_image` reaches for
+it whenever an input has no alpha channel. It fails two bars at once.
+
+**It is gated.** Hugging Face answers `401 ... Access to model briaai/RMBG-2.0 is restricted`
+until somebody accepts terms in a browser. A licence that cannot be read without accepting it
+cannot be gated on, which is the same objection that keeps DWPose out: terms nobody has read
+travel into whatever the model touches.
+
+**And it is non-commercial.** RMBG is offered for non-commercial use with a separate paid
+agreement for anything else, which is the class `filter_coco_licenses.py` exists to drop.
+
+**What replaces it, and the answer is different for the two cases.**
+
+For anything this workspace renders, no matting model is needed at all. The silhouette of a
+render is not a thing to infer from pixels: it is which rays hit the body, which the depth AOV
+already reports exactly. `render_view.py` writes RGBA with that alpha, and
+`preprocess_image` uses an existing alpha channel directly rather than calling any model. The
+matte is then ground truth rather than a prediction, which is strictly better than what the
+blocked model would have produced.
+
+For images we did not render, See-Through is the in-house route. It is passthrough by
+construction, it already separates a picture into labelled layers, and RFD 1079 covers what it
+does and does not model. Reaching for a gated third-party matter when the workspace maintains
+a segmentation model of its own is the drift this table exists to stop.
+
+The distinction worth keeping: the render case removes the dependency, and the photograph case
+replaces it. Only the second is a substitution, and only the second needs measuring against
+what it replaced.
 
 ### A corpus generator must be a checkpoint we hold
 
