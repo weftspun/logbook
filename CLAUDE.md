@@ -604,3 +604,7 @@ So the reversal is narrower than it looks. A repository for a document nobody co
 unreviewed was a repository earning nothing, and the two links replace it. The original
 objection is still correct about the thing it was written for, and if a tracked permission set
 comes back it should come back as a checkout, not as a third link.
+
+## Claude does not write attribution
+
+User settings do not write claude attribution.
