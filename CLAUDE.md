@@ -258,6 +258,7 @@ Sources excluded from corpora, with the reason:
 | AddBiomechanics `.b3d` as an identity source       | lab volunteers — narrow and inequitable population                                                                                  |
 | `caldata_*_jc.parquet`                             | pre-cut derivatives; use originals                                                                                                  |
 | EasyDiffusion outputs, seethrough PSDs             | secondary generation                                                                                                                |
+| **Blender**                                        | renders are not reproducible across versions — see below                                                                            |
 | `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
 | **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
 | **`uv` for project environments**                  | an environment nothing declares and nobody can rebuild — use `pixi`, see below                                                      |
@@ -364,6 +365,40 @@ Two consequences worth stating rather than discovering:
   with its licence and a recorded upstream hash is visible in every diff, which is the property
   submodules lack. Prefer a manifest entry, vendor when the dependency is small and stable, and
   do not reach for a submodule in either case.
+
+### Blender is blocklisted, and reproducibility is why
+
+A render is a measurement, and a measurement that cannot be re-run identically is not one.
+Blender's headless output moves with the version and with the build flags it was compiled
+against, so the same scene rendered on two desks is two corpora with one name. Nothing
+reports the difference: the images look right in both places.
+
+**No exceptions.** Not for a depth pass, not for a one-off bake, not for a person opening
+the GUI to check something by eye. A carve-out for manual use is how the dependency comes
+back, because the manual result is what somebody then wants to keep.
+
+The version installed here when this was written was **5.2.0 LTS**, build date 2026-07-14,
+from a package manager, pinned by nothing. That is the whole argument in one line: no file
+in this workspace records it, `repo status` cannot see it, and the next desk has whatever
+its own package manager last offered.
+
+**What this costs, stated rather than discovered.** Two things depended on it and both are
+now open questions rather than solved problems.
+
+`render_image.py` in `6-datasource/dataflow-coco-gemx` runs as
+`blender -b --python render_image.py`, and it writes the depth pass. Depth is the
+conditioning signal for the generation path, not a by-product, so this is a hole in the
+pipeline and not a tidying-up. The file stays in the tree as the record of what the pass has
+to produce; it is not the way to produce it any more.
+
+RFD 107a's PBR bake said to do the bake in Blender because MPFB2 is a Blender addon and the
+material was authored there. That method is gone with this entry. The bake still has to
+happen -- albedo, roughness and normal over the hm08 UV layout, metallic a constant zero --
+and it now needs a renderer that a `pixi.toml` can pin.
+
+The replacement is not named here, because naming one without measuring it is how the last
+unpinnable dependency arrived. What a candidate has to show: it installs from a lockfile, it
+renders the same bytes twice on two machines, and the check for that ships with it.
 
 ### A corpus generator must be a checkpoint we hold
 

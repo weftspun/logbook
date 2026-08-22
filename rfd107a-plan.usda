@@ -210,7 +210,18 @@ below. Reading the two against each other is the next thing to do here, and it i
         }
 
         def "T03_PbrBake" (
-            doc = """Bake the skin material to a flat texture set, in Blender, with MPFB2.
+            doc = """Bake the skin material to a flat texture set. Not in Blender.
+
+THE METHOD THIS TASK NAMED IS BLOCKLISTED. It read "do the bake in Blender, with MPFB2,
+because that is the tool the material was authored for". Blender is on the blocklist as of
+2026-08-22, for reproducibility: headless output moves with the version and the build flags,
+so the same scene on two desks is two corpora with one name, and the version here (5.2.0
+LTS) is pinned by nothing.
+
+So the bake is now blocked on choosing a renderer a `pixi.toml` can pin, which must render
+the same bytes twice on two machines and ship the check that shows it. That is work this
+task did not have yesterday, and it is stated here rather than left for whoever opens the
+file expecting MPFB2.
 
 `node_trees/enhanced_skin.json` is a Principled skin shader driving Roughness with 3
 references, Normal with 4 and Clearcoat with 2, and setting Metallic nowhere, because skin
