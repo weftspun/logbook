@@ -332,8 +332,27 @@ That is the same invisibility the **Sides** rule exists to stop. An unplaced pro
 and a submodule is an unplaced project that also claims to be placed.
 
 So a third-party dependency is a `<project>` in the goal manifest's `default.xml`, on a side,
-with a pinned `revision`. The manifest already answers "what version, from where, and why",
-because a comment can sit beside the entry. A `.gitmodules` line answers only the first two.
+with a pinned `revision`. The entry answers "what version, and from where" in fields a tool
+reads: a name, a path, a remote and a revision. A `.gitmodules` line answers the same two
+questions with a bare hash and no name attached, which is the whole of the difference.
+
+**Corrected: the "why" is not in the manifest, and the earlier wording said it was.** This
+paragraph used to read that the manifest answers "what version, from where, and why, because
+a comment can sit beside the entry". Comments in a manifest are now blocklisted and
+`check_manifest_comments.py` in `weftspun/weftspun-keypoint` enforces it, so that clause
+describes an arrangement that no longer exists.
+
+The reason is that a comment beside a `<project>` is the one thing in an otherwise checkable
+file that nothing can check. Paths resolve, revisions fetch, linkfiles are followed — and the
+paragraph above an entry goes on describing the path or revision it had when somebody wrote
+it, with no diff, no CI run and no `repo` command reporting that the two have parted. That is
+the same second-place-a-fact-lives failure this section is itself written against, one layer
+down.
+
+So the "why" moves to the commit message and the pull request description, which is where the
+rule on editing other people's codebases already sends it, and to an RFD when it is durable.
+Both are reviewed when written and neither claims to describe a current state, so neither can
+go stale in place.
 
 Two consequences worth stating rather than discovering:
 
