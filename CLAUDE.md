@@ -260,6 +260,7 @@ Sources excluded from corpora, with the reason:
 | EasyDiffusion outputs, seethrough PSDs             | secondary generation                                                                                                                |
 | `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
 | **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
+| **`uv` for project environments**                  | an environment nothing declares and nobody can rebuild — use `pixi`, see below                                                      |
 | `weftspun/rf-detr-keypoint-data`                   | **val2017-derived** — carries the whole blinded holdout, and 78% of it is licence-dirty. Validation only, never training. See below |
 
 The cosplay photo library may be used for **validation only**, never
@@ -291,6 +292,35 @@ built rather than filtered out of this one, which is what the renderer in RFD 01
 
 `rf-detr-detection-data` and `rf-detr-segmentation-data` are unaffected. Both come from a
 Roboflow clothing set rather than COCO, and neither contains a holdout image.
+
+### `uv` is blocklisted for project environments, and `pixi` is why
+
+The objection is the same one submodules get, one layer down. A `uv pip install` leaves an
+environment that no file declares, no lockfile pins, and nobody else can rebuild. `repo status`
+cannot see it, a diff cannot show it, and the next desk gets a different set of versions with
+no report.
+
+The failure is not hypothetical and is recorded next door. Standing up the Hailo compiler on a
+Mac took more than twenty packages, discovered one `ModuleNotFoundError` at a time, installed
+ad hoc. Every one of them was a real dependency of a real tool, and after the session none of
+it existed anywhere: not in a manifest, not in a lock, not in the logbook. The work was
+repeatable only by repeating the guessing.
+
+`pixi` answers exactly that. `pixi.toml` declares the environment, `pixi.lock` pins it, both
+are tracked, and a second environment for a second job is a `[feature]` rather than a second
+undeclared venv. `tropes-removal-model` now carries a `gate` environment with
+`no-default-feature` for precisely this: the gate's dependencies were being hand-listed in two
+CI `pip install` lines that could drift from the manifest without anybody noticing.
+
+Two limits worth stating rather than discovering.
+
+**This is about PROJECT environments, not about the binary.** `uvx` or `uv run` to invoke a
+one-shot tool that touches nothing is not what this blocks. What it blocks is an environment
+that work depends on and no file describes.
+
+**A tool that ships its own resolver keeps it.** This rule does not ask anybody to rewrite a
+dependency stack that already declares itself elsewhere, and it does not reach into third-party
+projects, where the density rule above already says to match what is there.
 
 ### Git submodules are blocklisted, and `default.xml` is why
 
