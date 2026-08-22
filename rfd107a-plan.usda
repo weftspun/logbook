@@ -1,0 +1,319 @@
+#usda 1.0
+(
+    defaultPrim = "Rfd107a"
+    doc = """RFD 107a's work as a stage, so the plan is data rather than prose.
+
+WHY THIS EXISTS. The RFD states its order in sentences, and a sentence cannot be asked
+whether step 8 comes after the two steps it needs. Here the order is an `int order`, the
+dependencies are relationships, and `scripts/check_rfd107a_plan.py` fails when the two
+disagree. RFD 1035 makes OpenUSD the internal format, and a plan is a graph, so it
+composes here for the same reason the topology does.
+
+WHAT IT IS NOT. It is not a second copy of the RFD. Every count under
+/Rfd107a/Quantities is searched for in the documents listed under `sources` below, so a
+number that drifts fails a command rather than being discovered six months later. The
+prose stays in the RFD, where it is reviewed; what lives here is the ordering, the
+dependency edges, and the counts. CLAUDE.md is a source because the holdout is 523 images
+and RFD 107a relies on that count without restating it.
+
+NO UP AXIS AND NO METERS PER UNIT, on purpose. Nothing here is geometry, and stamping a
+stage-wide up axis on a task graph would invite a consumer to compose it with a body."""
+    customLayerData = {
+        string rfd = "107a"
+        string rfdState = "discussion"
+        string[] sources = [
+            ".request_for_discussion/107a-the-wholebody-gap/README.md",
+            ".request_for_discussion/107a-the-wholebody-gap/DETAILS.md",
+            "CLAUDE.md",
+        ]
+        string checker = ".logbook/scripts/check_rfd107a_plan.py"
+        string[] stateVocabulary = ["gate", "build", "measure", "exists"]
+    }
+)
+
+def Scope "Rfd107a" (
+    doc = "The wholebody gap: a 104-point head, and the renderer that supplies its labels."
+)
+{
+    # ---------------------------------------------------------------------------------
+    # The counts the plan turns on. Each is checked against the RFD text, commas stripped,
+    # as a whole token. A count that lives only here is a count nobody reviewed.
+    # ---------------------------------------------------------------------------------
+    def Scope "Quantities"
+    {
+        custom int wholebodyKeypoints = 104
+        custom int cocoKeypoints = 17
+        custom int sharedKeypoints = 14
+        custom int renderOnlyKeypoints = 90
+        custom int arkitCoefficients = 52
+        custom int keypointAssetPoints = 23
+        custom int mocapClips = 810
+        custom int basemeshVertices = 19158
+        custom int bodyVertices = 13718
+        custom int basemeshQuads = 18486
+        custom int textureCoordinates = 21334
+        custom int holdoutImages = 523
+        custom float qwenDefaultStrength = 0.8
+    }
+
+    # ---------------------------------------------------------------------------------
+    # Standing constraints. They sit beside the plan rather than inside it, because they
+    # hold at every step and belong to no one of them.
+    # ---------------------------------------------------------------------------------
+    def Scope "Constraints"
+    {
+        def "BlindedHoldout" (
+            doc = """`coco_person_commercial_val2017`, 523 licence-filtered COCO person
+images, is blinded: not inspected while developing, not used to pick a checkpoint, a
+hyperparameter, a threshold or a stopping point. A holdout consulted repeatedly during
+development has been trained on by hand, just slowly."""
+        )
+        {
+            custom uniform token kind = "holdout"
+        }
+
+        def "NeverGenerateFromVal2017" (
+            doc = """If train2017 feeds a generation pipeline, val2017 must not. An image
+generated from a held-out photo carries that photo's content into training."""
+        )
+        {
+            custom uniform token kind = "holdout"
+        }
+
+        def "DerivedInheritsStatus" (
+            doc = """Anything derived from val2017 inherits its status. The COCO-OOD
+stylized sets in `6-datasource/coco-ood-eval` are val2017 restyled, so they are
+evaluation-only twice over: derived from the holdout, and generated."""
+        )
+        {
+            custom uniform token kind = "holdout"
+        }
+
+        def "QwenDomainsAreOneModel" (
+            doc = """Photoreal and colour sketch both come from Qwen-Image-Edit, so their
+errors correlate. Report the two together when scoring. An average over four domains
+where two share a model overstates the spread."""
+        )
+        {
+            custom uniform token kind = "scoring"
+        }
+    }
+
+    # ---------------------------------------------------------------------------------
+    # The list. `order` is the reading order; `dependsOn` is the real constraint, and the
+    # checker asserts every dependency has a strictly lower order. A graph that disagrees
+    # with its own numbering is the defect this representation exists to catch.
+    # ---------------------------------------------------------------------------------
+    def Scope "Plan"
+    {
+        def "T01_PoseLibraryPlausibility" (
+            doc = """Draw twenty stick figures and look at them.
+
+All 810 licence-clean clips are locomotion: walking, running, turning, standing still.
+Character drawings are rarely mid-stride, so walk cycles teach a keypoint detector little
+about sitting or leaning. Project the 104 joints with the camera arithmetic, draw the
+figure, and ask whether a character artist would draw that pose.
+
+Needs no renderer, no GPU and no install. If the answer is no, author poses by hand: the
+pose-source rule already permits it, and a hand-authored pose is constructed rather than
+generated."""
+        )
+        {
+            custom int order = 1
+            custom uniform token state = "gate"
+            custom string title = "Check the pose library is worth rendering"
+            custom string measurement = "of twenty projected poses, how many a character artist would draw"
+            custom bool redirectsThePlan = 1
+            custom string[] apparatus = ["extract_poses.py", "camera arithmetic"]
+            rel dependsOn = []
+        }
+
+        def "T02_Renderer" (
+            doc = """Build the renderer. The one thing nothing else supplies: image,
+keypoints, masks, camera parameters, depth, mesh and PBR out of a posed ANNY body.
+
+Two things to get right at the start. The `coco.pth` weight vectors are 19,158 wide, which
+is the basemesh space, while `topology="anny"` returns the 13,718-vertex body submodel and
+would fail to multiply; the map between the two is measured rather than assumed
+(`body_index = searchsorted(ref, basemesh_index)`, maximum positional difference 0.0
+exactly). And the nose and both ears have no bone, so they need fixed mesh vertices, which
+is why `topology_id` is a foreign key rather than a label."""
+        )
+        {
+            custom int order = 2
+            custom uniform token state = "build"
+            custom string title = "Render the labels rather than annotate them"
+            custom string measurement = "a posed mesh in, a labelled frame out, labels exact by projection"
+            custom string[] emits = ["keypoints_2d", "segmentation", "depth_map", "meshes"]
+            custom string[] apparatus = ["2-contract/hm08-partition/export_hm08_usd.py"]
+            # Not `T03_PbrBake`. The renderer is built and unit-tested against a flat
+            # material; what needs the bake is a frame anybody keeps, which is why that
+            # edge lands on T07 rather than here. The first version of this file put it
+            # here and made the numbering disagree with its own graph.
+            rel dependsOn = [</Rfd107a/Plan/T01_PoseLibraryPlausibility>]
+        }
+
+        def "T03_PbrBake" (
+            doc = """Bake the skin material to a flat texture set, in Blender, with MPFB2.
+
+`node_trees/enhanced_skin.json` is a Principled skin shader driving Roughness with 3
+references, Normal with 4 and Clearcoat with 2, and setting Metallic nowhere, because skin
+is dielectric. Pixal3D's toolkit wants a flat texture set and this is not one, so run the
+node group once over the hm08 UV layout and write albedo, roughness and normal. Metallic is
+a constant zero and needs no map. Bake once and reuse it in every render.
+
+The bake needs UVs and they exist: `texture_coordinates` is (21334, 2) under
+`topology="anny"`. An earlier version of the RFD called this blocked, and the retraction
+stays beside what replaces it."""
+        )
+        {
+            custom int order = 3
+            custom uniform token state = "build"
+            custom string title = "Bake albedo, roughness and normal over the hm08 UVs"
+            custom string measurement = "one texture set, reused across every render"
+            custom bool wasRetracted = 1
+            rel dependsOn = [</Rfd107a/Plan/T01_PoseLibraryPlausibility>]
+        }
+
+        def "T04_QwenCheckpointHash" (
+            doc = """Make `qwen-image-edit`'s `server.py` return `checkpoint_sha256` and
+echo the instruction. It returns `{image, seed, stub}` today.
+
+This is a change to the server, not a note. Condition 1 of the generated-synthetic rule
+requires the generating model, checkpoint and conditioning recorded WITH THE DATA, and a
+hash in a server log is not with the data. The CycleGAN server already returns
+`checkpoint_sha256` per result for exactly this reason. Until it lands, two of the four
+appearances cannot enter a corpus."""
+        )
+        {
+            custom int order = 4
+            custom uniform token state = "build"
+            custom string title = "Condition 1 on the Qwen path"
+            custom string measurement = "every returned frame carries its checkpoint hash and its instruction"
+            custom string[] blocks = ["photoreal appearance", "colour sketch appearance"]
+            rel dependsOn = []
+        }
+
+        def "T05_StrengthWindow" (
+            doc = """Measure the usable `strength` window before scaling.
+
+The packaged Qwen-Image-Edit interface takes `image`, `instruction`, `strength`, `steps`
+and `seed`. There is no depth control, so geometry preservation rests on `strength` alone.
+A low value preserves the pose and barely changes the picture; a high value gives a
+convincing sketch and is free to move a limb. The window is an empirical question and it
+may be empty, and an empty window is the signal to reconsider rather than a tuning problem.
+
+The default is 0.8, which is high for this purpose. Do not inherit it. FastCUT is the
+recorded fallback, at the cost of a training run. Full CUT stays excluded for any labelled
+corpus: enlarging objects to match target statistics is its advertised advantage, and it
+moves every joint."""
+        )
+        {
+            custom int order = 5
+            custom uniform token state = "measure"
+            custom string title = "Find the strength that keeps the pose and still looks like a sketch"
+            custom string measurement = "joint drift against the source render, swept over strength"
+            custom bool mayBeEmpty = 1
+            rel dependsOn = [</Rfd107a/Plan/T04_QwenCheckpointHash>]
+        }
+
+        def "T06_SchemaCompletion" (
+            doc = """Finish the corpus schema. `KEYPOINTS_2D`, `SEGMENTATION` and `RENDERS`
+are defined; `visibility` as int8 and `topology_id` are pending.
+
+`visibility` carries three states and a boolean cannot: 2 visible, 1 projects inside the
+silhouette but fails the z-test against rendered depth, 0 outside the frame. COCO has three
+states for the same reason, and masked training must tell NOT ANNOTATED from ANNOTATED AS
+OCCLUDED. Real datasets guess at the middle state or omit it; a render knows it.
+
+`topology_id` is a foreign key because a `vertex_id` means nothing without one — the two
+ANNY topologies share zero vertices, measured in both directions. Root translation stays
+absent: it follows from `constraints` and the chain, so a column for it would be
+derivable."""
+        )
+        {
+            custom int order = 6
+            custom uniform token state = "build"
+            custom string title = "visibility int8, and topology_id as a foreign key"
+            custom string measurement = "no NULLs and no derivable columns, ETNF holds"
+            rel dependsOn = [</Rfd107a/Plan/T01_PoseLibraryPlausibility>]
+        }
+
+        def "T07_VerificationLoop" (
+            doc = """Wire verification into the frame loop: every restyled frame checked
+against the render it came from, failures discarded rather than fixed.
+
+Restyling moves things and a moved arm makes the label a lie. `silhouette.py`,
+`depth_term.py` and `soma_referee.py` exist with their controls passing; what does not
+exist is the loop that runs them per frame and drops what fails. Hand quality is measured
+here too, by the finger-chain gate, before any volume run — the reason
+`alfredplpl/anime-with-caption-cc0` images are blocked is malformed hands, and generating a
+replacement with a model that malforms them differently is the same defect with our
+provenance on it."""
+        )
+        {
+            custom int order = 7
+            custom uniform token state = "build"
+            custom string title = "Verify before training, not after"
+            custom string measurement = "frames passed and frames discarded, both counted and both reported"
+            custom string[] apparatus = ["silhouette.py", "depth_term.py", "soma_referee.py"]
+            rel dependsOn = [
+                </Rfd107a/Plan/T02_Renderer>,
+                </Rfd107a/Plan/T03_PbrBake>,
+                </Rfd107a/Plan/T05_StrengthWindow>,
+            ]
+        }
+
+        def "T08_MaskedTraining" (
+            doc = """Run the masked-loss training. The head outputs 104 points. On a real
+licence-filtered COCO photo only the 14 shared points score; on our render all 104 do, and
+the renders teach the other 90.
+
+Upstream RF-DETR is Apache-2.0 and the masked-loss run does not exist. The corpus may not
+include `weftspun/rf-detr-keypoint-data`: it holds all 523 holdout images, split across its
+own train and test, and 78% of it is licence-dirty."""
+        )
+        {
+            custom int order = 8
+            custom uniform token state = "build"
+            custom string title = "One head on heterogeneous annotation"
+            custom string measurement = "loss masked per source, and which points each source scored"
+            rel dependsOn = [
+                </Rfd107a/Plan/T06_SchemaCompletion>,
+                </Rfd107a/Plan/T07_VerificationLoop>,
+            ]
+        }
+
+        def "T09_GgufAndHead" (
+            doc = """Convert and port. `convert_keypoints_to_gguf.py` exists and the
+`rf-detr-cpp` inference port works, but its head is COCO-17, so the head goes from 17 to
+104."""
+        )
+        {
+            custom int order = 9
+            custom uniform token state = "build"
+            custom string title = "GGUF, and the head from 17 to 104"
+            custom string measurement = "port output against the trained head, per keypoint"
+            custom string[] apparatus = ["scripts/convert_keypoints_to_gguf.py"]
+            rel dependsOn = [</Rfd107a/Plan/T08_MaskedTraining>]
+        }
+
+        def "T10_Evaluate" (
+            doc = """Evaluate where the labels are real: the blinded holdout, real
+photographs only, 523 images. Score the 14 shared points apart from the 90 render-only
+ones, and report the two Qwen-derived domains together rather than as two columns.
+
+A model measured on its own generation distribution has not been measured. Real
+photographs validate the pose pipeline and not the layer-decomposition task; a photograph
+has no ground-truth front-hair / back-hair split, so See-Through still needs held-out
+illustrations and this set does not supply them."""
+        )
+        {
+            custom int order = 10
+            custom uniform token state = "build"
+            custom string title = "Score on real photographs, shared points apart from render-only"
+            custom string measurement = "the 14 shared points, reported beside the floor, on 523 held-out images"
+            rel dependsOn = [</Rfd107a/Plan/T09_GgufAndHead>]
+        }
+    }
+}
