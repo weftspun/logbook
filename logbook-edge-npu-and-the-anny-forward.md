@@ -126,7 +126,18 @@ against `anny`'s own output, at float64:
     inv(rest_bone_poses) @ bone_poses     max|diff| 1.024e+00
 
 4.441e-16 is float64 epsilon, so this establishes the algebra and NOTHING about float32 or
-INT8. `inv(rest_bone_poses)` is constant and folds to an initializer. The operations are
+INT8. `inv(rest_bone_poses)` is constant and folds to an initializer.
+
+**The rest it skins is the CORRECTED rest, not the template.** The match above uses
+`rest_vertices` from the forward's own output rather than the `template_vertices` buffer, so
+the blendshape correctives are already in it. ANNY carries `blendshapes` at (624, 13718, 3)
+with `bone_heads_blendshapes` (624, 104, 3) and `bone_orientation_blendshapes`
+(624, 104, 3, 3) beside them, and phenotype and local-change coefficients select from those.
+A reimplementation that skins `template_vertices` directly will not reproduce this number,
+and the error will look like a skinning bug rather than a missing stage.
+
+That stage is also ordinary arithmetic: a coefficient vector against a (624, N, 3) stack is a
+matmul, so it folds into the same operator set as the skinning below. The operations are
 Gather, MatMul, Mul and ReduceSum, all four of which already compiled in the backbone.
 
 `vertex_bone_weights` is (13718, 9), nine influences per vertex. An earlier cost estimate
