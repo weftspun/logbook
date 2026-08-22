@@ -149,31 +149,35 @@ body, as Lean to Slang kernels, with `core/gen/lbs.spv` compiled and a CPU refer
 joint-limit encoding. Both were already written. Neither is ONNX, so what they supply is the
 specification, the baked arrays and a reference to validate against, rather than a graph.
 
-## The clamp must be pairwise, and this was measured before
+## The clamp is a concatenation of pairwise kusudamas
 
-RFD 107e's decision clamps every unrolled step to the Kusudama cone. The naive form of that
-clamp is the one that already failed. `humanoid-rom/FINDINGS.md` records it:
+RFD 107e's decision clamps every unrolled step to the Kusudama cone. How that clamp is
+BUILT was settled in a meeting, and it is not the obvious reading of the phrase.
+
+**A joint limit is never one kusudama with three or more cones. It is pairwise kusudamas,
+each with two cones, concatenated.** Two-cone constraints compose in sequence to express what
+a single many-cone kusudama was being asked to express, and nothing in the pipeline
+constructs a kusudama of three or more rotations.
+
+The measurement behind that choice is already in `humanoid-rom/FINDINGS.md`:
 
     3 equidistant cones, 120 degrees apart    |sum| = 4.003e-16   degenerate
 
 `KusudamaSolver` derived the pole of its gnomonic projection by summing every cone centre and
 normalising. Three equidistant cones sum to zero, `normalize` of zero is undefined, and one
 unit in the last place moves the derived pole by 45 degrees. The flip is a degenerate centroid
-and not a race.
+and not a race. `KusudamaEncoding.lean` separately retires the pole derivation in favour of
+projecting against the nearest cone, which is a fix to the solver; the decision recorded here
+is upstream of it, and removes the many-cone case from the pipeline rather than repairing it.
 
-The fix, from `HumanoidRom/core/KusudamaEncoding.lean`, is to stop deriving a pole at all and
-project against the NEAREST cone, which is an actual cone centre and therefore never
-degenerate. So the constraint is composed PAIRWISE. No triplet, and no sum over three or more
-cones anywhere in the clamp.
+The consequence for an unrolled clamp is favourable. A two-cone kusudama is a fixed, small
+computation, and a concatenation of them is a fixed-length chain of the same, so the whole
+constraint stays feed-forward with no data-dependent count. Comparisons and selects are `Min`
+and `Where`, which the backbone already compiled. A many-cone kusudama would have needed a
+normalise whose input can be zero, and an INT8 pipeline has no good answer for that division.
 
-That is fortunate for the graph rather than a cost. A nearest-cone projection over a fixed
-cone count is a comparison and a select, and a pairwise composition is a chain of them:
-`Min`, `Where`, `Gather`, all of which are ordinary and all of which the backbone already
-compiled. Deriving a pole would have needed a normalise whose input can be zero, which is a
-division that an INT8 pipeline has no good answer for.
-
-Recorded here because the unrolled clamp is a new consumer of an old finding, and the naive
-implementation is the one that reads most naturally from the phrase "clamp to the Kusudama".
+Recorded because the unrolled clamp is a new consumer of an old decision, and building one
+many-cone kusudama is what reads most naturally from "clamp to the Kusudama cone".
 
 ## What is not measured
 
