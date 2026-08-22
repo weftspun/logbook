@@ -195,13 +195,23 @@ RFD 107a's layer-extraction design masks in the latent -- "tokens, not meshes", 
 nothing is inverted". That is true of upstream and not of the packaged server. Reading the
 GLB back would be `encode(decode(z))`, which the latents rule blocklists by name.
 
-So getting tokens is new work: something has to drive the three-stage cascade directly and
-return them. It is not a configuration problem and no amount of hardware settles it."""
+CORRECTED THE SAME DAY, and the correction makes this much smaller. An earlier version of
+this finding said getting tokens was new work, with something needing to drive the cascade
+directly. Upstream already does it. `pipeline.run` takes `return_latent: bool = False` and
+returns `out_mesh, (shape_slat, tex_slat, res)` when it is set, and upstream's own
+`inference.py` sets it at line 246 -- then keeps `mesh_list[0]`, writes the GLB, and drops
+both latents on the floor. There is no CLI flag to keep them; `--output` names the GLB.
+
+So the missing piece is a serialiser and an interface, not a reimplementation of three
+diffusion transformers. Call `pipeline.run` in process, keep the two SLATs, write them
+beside the mesh. The pinned commit is `cdbb2bb` on `TencentARC/Pixal3D`."""
         )
         {
             custom uniform token subject = "pixal3d"
             custom string date = "2026-08-22"
-            custom string evidence = "2-contract/request_for_discussion/1028-pixal3d-image-to-textured-mesh/server.py, _run_upstream and predict"
+            custom string evidence = "1028/server.py _run_upstream and predict; upstream inference.py:246 and pixal3d/pipelines/pixal3d_image_to_3d.py:609,173"
+            custom string upstreamCommit = "cdbb2bb"
+            custom bool wasCorrected = 1
         }
 
         def "F05_Pixal3dIsUnplaced" (
