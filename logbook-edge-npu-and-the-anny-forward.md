@@ -126,22 +126,45 @@ against `anny`'s own output, at float64:
     inv(rest_bone_poses) @ bone_poses     max|diff| 1.024e+00
 
 4.441e-16 is float64 epsilon, so this establishes the algebra and NOTHING about float32 or
-INT8. `inv(rest_bone_poses)` is constant and folds to an initializer. The operations are
+INT8. `inv(rest_bone_poses)` is constant and folds to an initializer.
+
+**The rest it skins is the CORRECTED rest, not the template.** The match above uses
+`rest_vertices` from the forward's own output rather than the `template_vertices` buffer, so
+the blendshape correctives are already in it. ANNY carries `blendshapes` at (624, 13718, 3)
+with `bone_heads_blendshapes` (624, 104, 3) and `bone_orientation_blendshapes`
+(624, 104, 3, 3) beside them, and phenotype and local-change coefficients select from those.
+A reimplementation that skins `template_vertices` directly will not reproduce this number,
+and the error will look like a skinning bug rather than a missing stage.
+
+That stage is also ordinary arithmetic: a coefficient vector against a (624, N, 3) stack is a
+matmul, so it folds into the same operator set as the skinning below. The operations are
 Gather, MatMul, Mul and ReduceSum, all four of which already compiled in the backbone.
 
 `vertex_bone_weights` is (13718, 9), nine influences per vertex. An earlier cost estimate
 assumed four and is low by roughly 2x: the mesh forward is about 1.5 MMAC, not 0.7.
 
-## Corrected: this was built against the wrong rig
+## Withdrawn: the rig was not wrong, and the numbers still differ
 
-The torch reimplementation above targets ANNY, 104 bones and 13,718 vertices. The production
-fitter does not use it. `lbfgs_polish.py` constructs with `rig="soma", topology="soma"`, and
-`sinew-solve/core/soma_rig.h` bakes that rig as SoA C arrays:
+This section previously read "Corrected: this was built against the wrong rig", and said the
+torch reimplementation above targets the wrong one. That is withdrawn.
+
+**The rest mesh is the definition, and it is ANNY. The skeleton converts.** So a
+reimplementation written against ANNY is written against the thing that defines the body, and
+the SOMA figures below are a second skeleton over the same mesh rather than a different
+subject. `anny_from_soma` in `AlternativeTopology` is that conversion, named in the package.
+
+What stands is narrower and still worth having: the numbers differ, so anything that indexes
+by joint or by vertex has to say which skeleton it means.
+
+`lbfgs_polish.py` constructs with `rig="soma", topology="soma"`, and
+`sinew-solve/core/soma_rig.h` bakes that skeleton as SoA C arrays:
 
     SOMA_V 18056    SOMA_J 78    SOMA_F 36108    SOMA_K 10
 
-78 joints and 10 influences, not 104 and 9. `soma_parents[78]` in the same header is the
-forward-kinematics tree.
+78 joints and 10 influences against ANNY's 104 and 9. `soma_parents[78]` in the same header is
+the forward-kinematics tree. `topology_id` is a foreign key in RFD 107a's schema for this
+reason, and the reason survives the withdrawal above: a `vertex_id` or a joint index means
+nothing without the skeleton it was taken under.
 
 `sinew-solve` describes itself as the body solve, FK plus linear blend skinning of the ANNY
 body, as Lean to Slang kernels, with `core/gen/lbs.spv` compiled and a CPU reference in
