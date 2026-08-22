@@ -37,7 +37,10 @@ RFD_DIR = HERE.parents[1] / ".request_for_discussion" / "107a-the-wholebody-gap"
 # images, and that count is stated in CLAUDE.md rather than in RFD 107a -- the RFD relies
 # on it without restating it. Searching only the RFD reported the count as drifted when
 # what had actually happened is that it lives one document over.
-SOURCES = (RFD_DIR / "README.md", RFD_DIR / "DETAILS.md", HERE.parents[1] / "CLAUDE.md")
+# CLAUDE.md is read from this repository rather than from the workspace root. The root
+# copy is a `linkfile` pointing back here, so the two are the same bytes when the workspace
+# exists and only this one is there when the logbook is checked out on its own.
+SOURCES = (RFD_DIR / "README.md", RFD_DIR / "DETAILS.md", HERE.parents[0] / "CLAUDE.md")
 PLAN = "/Rfd107a/Plan"
 QUANTITIES = "/Rfd107a/Quantities"
 STATES = ("gate", "build", "measure", "exists")

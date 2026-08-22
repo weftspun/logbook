@@ -16,8 +16,19 @@ prose stays in the RFD, where it is reviewed; what lives here is the ordering, t
 dependency edges, and the counts. CLAUDE.md is a source because the holdout is 523 images
 and RFD 107a relies on that count without restating it.
 
-NO UP AXIS AND NO METERS PER UNIT, on purpose. Nothing here is geometry, and stamping a
-stage-wide up axis on a task graph would invite a consumer to compose it with a body."""
+RETRACTED: THERE IS AN UP AXIS AND A METERS PER UNIT. An earlier version of this file
+omitted both and said so on purpose, arguing that nothing here is geometry and that
+stamping an up axis on a task graph would invite a consumer to compose it with a body.
+That argument is about taste and it loses to the validator: `UsdValidation` reports
+`does not specify an upAxis` and `does not specify its linear scale in metersPerUnit` as
+ERRORS, so the layer failed usdchecker's own rules while claiming to be a USD layer.
+
+They are here now, and they mean nothing. `upAxis = "Z"` matches what
+`export_hm08_usd.py` writes for the body, so a consumer that does compose the two finds
+them agreeing rather than contradicting. `metersPerUnit = 1` is the default made
+explicit. The gate checks this, so the claim cannot rot."""
+    metersPerUnit = 1
+    upAxis = "Z"
     customLayerData = {
         string rfd = "107a"
         string rfdState = "discussion"

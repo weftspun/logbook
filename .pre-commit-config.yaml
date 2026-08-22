@@ -4,3 +4,41 @@ repos:
     hooks:
       - id: prettier
         types: [markdown]
+
+  # RFD 1035 makes OpenUSD the internal format, so a layer that other tools reject is a
+  # layer that is not written yet. `rfd107a-plan.usda` opened in Python, composed without
+  # error and read back its ten tasks while still failing usdchecker's rules for want of
+  # an `upAxis` -- "it opens" is not "it is valid", and only a gate tells them apart.
+  #
+  # `usd-core` is pinned rather than floated: the validator set is what decides pass or
+  # fail here, and a version bump that adds a rule should arrive as a diff somebody
+  # approves rather than as a red run on an unrelated pull request.
+  - repo: local
+    hooks:
+      - id: usd-valid
+        name: USD layers parse, validate and round-trip through crate
+        entry: python scripts/check_usd_valid.py
+        language: python
+        additional_dependencies: ["usd-core==26.8"]
+        files: \.usd[acz]?$
+        pass_filenames: true
+
+      # The plan's numbering must agree with its own graph, and its counts with the
+      # documents they came from -- and one of those documents is RFD 107a, which lives in
+      # `request-for-discussion` rather than here. CI checks this repository out on its
+      # own, so the RFD is simply absent there and the check cannot run.
+      #
+      # `stages: [manual]` rather than a skip inside the script, because the two read
+      # differently. A script that notices a missing source and passes anyway reports a
+      # green run for a check it did not perform; a manual hook reports nothing and says
+      # where to run it. In a goal-manifest workspace:
+      #
+      #     prek run rfd107a-plan --hook-stage manual --all-files
+      - id: rfd107a-plan
+        name: RFD 107a's plan agrees with its graph and with the RFD
+        entry: python scripts/check_rfd107a_plan.py
+        language: python
+        additional_dependencies: ["usd-core==26.8"]
+        files: ^(rfd107a-plan\.usda|scripts/check_rfd107a_plan\.py|CLAUDE\.md)$
+        pass_filenames: false
+        stages: [manual]
