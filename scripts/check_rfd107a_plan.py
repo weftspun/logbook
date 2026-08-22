@@ -27,20 +27,67 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 DEFAULT_STAGE = HERE.parent / "rfd107a-plan.usda"
-# The workspace root is two levels up from this file: `.logbook` is a project checked out
-# AT the root, so `scripts/` -> `.logbook` -> root is parents[1], not parents[2]. The first
-# version said [2] and resolved to `C:\`, where the RFD is reliably absent -- and because a
-# missing source is a FAIL, the count check reported a failure that had nothing to do with
-# the counts.
-RFD_DIR = HERE.parents[1] / ".request_for_discussion" / "107a-the-wholebody-gap"
+REPO = HERE.parent
+
+
+def workspace_root():
+    """The `repo` client root: the first ancestor holding `.repo`.
+
+    COUNTED PARENTS TWICE AND WAS WRONG TWICE, which is why this is a search now. The
+    first version said `parents[2]` and landed on `C:\\`. The fix said `parents[1]`, which
+    was right for exactly as long as this repository sat at the workspace root as
+    `.logbook` -- the manifest then moved it to `2-contract/logbook` and `parents[1]`
+    became `2-contract`. A hard-coded depth encodes where a project happens to be checked
+    out today, and the manifest is allowed to move it tomorrow. `.repo` is the thing that
+    does not move.
+
+    Returns None when there is no client above us, which is what CI sees: this repository
+    checked out on its own, with no workspace and no RFD anywhere near it.
+    """
+    for d in (REPO, *REPO.parents):
+        if (d / ".repo").is_dir():
+            return d
+    return None
+
+
+def rfd_dir():
+    """Where RFD 107a is checked out, asked of the manifest rather than guessed.
+
+    The RFD moved in the same sync this repository did -- `.request_for_discussion` at the
+    workspace root became `2-contract/request_for_discussion` -- so a second hard-coded
+    path would have broken for the second time on the same afternoon. `default.xml` is the
+    thing that knows: it is where the placement is decided, and the Sides rule says a
+    project's side is whatever a live goal manifest says it is.
+    """
+    root = workspace_root()
+    if root is None:
+        return None
+    manifest = root / ".repo" / "manifests" / "default.xml"
+    if manifest.exists():
+        import xml.etree.ElementTree as ET
+
+        for project in ET.parse(manifest).getroot().iter("project"):
+            if project.get("name") == "request-for-discussion":
+                return root / project.get("path") / "107a-the-wholebody-gap"
+    # No manifest to read: one level of search rather than a walk of the whole tree.
+    for name in ("request_for_discussion", "request-for-discussion"):
+        for cand in (root / name, *root.glob(f"*/{name}")):
+            if cand.is_dir():
+                return cand / "107a-the-wholebody-gap"
+    return None
+
+
+ROOT = workspace_root()
+RFD_DIR = rfd_dir() or (REPO / ".request_for_discussion" / "107a-the-wholebody-gap")
 # The working agreements are a source too, and not as a convenience. The holdout is 523
 # images, and that count is stated in CLAUDE.md rather than in RFD 107a -- the RFD relies
 # on it without restating it. Searching only the RFD reported the count as drifted when
 # what had actually happened is that it lives one document over.
-# CLAUDE.md is read from this repository rather than from the workspace root. The root
-# copy is a `linkfile` pointing back here, so the two are the same bytes when the workspace
-# exists and only this one is there when the logbook is checked out on its own.
-SOURCES = (RFD_DIR / "README.md", RFD_DIR / "DETAILS.md", HERE.parents[0] / "CLAUDE.md")
+#
+# CLAUDE.md is read from this repository rather than from the workspace root. The root copy
+# is a `linkfile` pointing back here, so the two are the same bytes when the workspace
+# exists, and only this one is there when the logbook is checked out on its own.
+SOURCES = (RFD_DIR / "README.md", RFD_DIR / "DETAILS.md", REPO / "CLAUDE.md")
 PLAN = "/Rfd107a/Plan"
 QUANTITIES = "/Rfd107a/Quantities"
 STATES = ("gate", "build", "measure", "exists")

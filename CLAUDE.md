@@ -607,4 +607,13 @@ comes back it should come back as a checkout, not as a third link.
 
 ## Claude does not write attribution
 
-User settings do not write claude attribution.
+Modify user settings so we do not write claude attribution.
+
+## How entries are written
+
+An entry records what was **measured**, not what was intended, and it clips the
+experimental apparatus — enough to re-run the test, not just its conclusion. Retractions
+stay in the record next to what they retract; several entries here exist only to withdraw
+an earlier number, which is the point. Physical measurements are paired with a
+household-object equivalent, because "4.3 mm" does not tell a reader whether an error
+matters and "about three stacked pennies" does.

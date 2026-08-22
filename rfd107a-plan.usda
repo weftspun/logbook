@@ -175,7 +175,17 @@ a constant zero and needs no map. Bake once and reuse it in every render.
 
 The bake needs UVs and they exist: `texture_coordinates` is (21334, 2) under
 `topology="anny"`. An earlier version of the RFD called this blocked, and the retraction
-stays beside what replaces it."""
+stays beside what replaces it.
+
+THIS ONE IS ITS OWN PUBLIC REPOSITORY, under `https://github.com/chibifire-stages`. Not
+a directory inside another project: the repo-layout rule is one standalone repository per
+deliverable, and the Sides rule says a new repository is placed when it is added rather
+than later, so it gets a `<project>` entry in the goal manifest at that time. Public,
+because the bake reads MakeHuman's own material and writes a flat texture set, and neither
+half carries anything that cannot be shown.
+
+The placement is not recorded here yet, and this attribute is the reminder rather than
+the record. An unplaced project is the drift the six words exist to stop."""
         )
         {
             custom int order = 3
@@ -183,6 +193,9 @@ stays beside what replaces it."""
             custom string title = "Bake albedo, roughness and normal over the hm08 UVs"
             custom string measurement = "one texture set, reused across every render"
             custom bool wasRetracted = 1
+            custom string repositoryOrg = "https://github.com/chibifire-stages"
+            custom uniform token repositoryVisibility = "public"
+            custom bool repositoryPlacedInManifest = 0
             rel dependsOn = [</Rfd107a/Plan/T01_PoseLibraryPlausibility>]
         }
 
