@@ -154,10 +154,16 @@ specification, the baked arrays and a reference to validate against, rather than
 RFD 107e's decision clamps every unrolled step to the Kusudama cone. How that clamp is
 BUILT was settled in a meeting, and it is not the obvious reading of the phrase.
 
-**A joint limit is never one kusudama with three or more cones. It is pairwise kusudamas,
-each with two cones, concatenated.** Two-cone constraints compose in sequence to express what
-a single many-cone kusudama was being asked to express, and nothing in the pipeline
-constructs a kusudama of three or more rotations.
+**No kusudama carries two or more cones. Constraints are pairwise, and concatenated.** A
+joint limit that a multi-cone kusudama was being asked to express is built instead as a
+concatenation of pairwise ones, and nothing in the pipeline constructs a kusudama of two or
+more rotation cones.
+
+Note the rule is stricter than the measurement below requires. The degeneracy was measured at
+three equidistant cones; the rule cuts at two. That margin is deliberate rather than an
+overstatement of the evidence: two cones already admit the opposed case, whose centre sum is
+degenerate for the same reason, and a threshold nobody has to reason about at the call site is
+worth more than the one cone it gives up.
 
 The measurement behind that choice is already in `humanoid-rom/FINDINGS.md`:
 
@@ -170,14 +176,14 @@ and not a race. `KusudamaEncoding.lean` separately retires the pole derivation i
 projecting against the nearest cone, which is a fix to the solver; the decision recorded here
 is upstream of it, and removes the many-cone case from the pipeline rather than repairing it.
 
-The consequence for an unrolled clamp is favourable. A two-cone kusudama is a fixed, small
+The consequence for an unrolled clamp is favourable. A pairwise kusudama is a fixed, small
 computation, and a concatenation of them is a fixed-length chain of the same, so the whole
 constraint stays feed-forward with no data-dependent count. Comparisons and selects are `Min`
 and `Where`, which the backbone already compiled. A many-cone kusudama would have needed a
 normalise whose input can be zero, and an INT8 pipeline has no good answer for that division.
 
-Recorded because the unrolled clamp is a new consumer of an old decision, and building one
-many-cone kusudama is what reads most naturally from "clamp to the Kusudama cone".
+Recorded because the unrolled clamp is a new consumer of this decision, and building a single
+multi-cone kusudama is what reads most naturally from "clamp to the Kusudama cone".
 
 ## What is not measured
 
