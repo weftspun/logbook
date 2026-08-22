@@ -23,6 +23,18 @@ repos:
         files: \.usd[acz]?$
         pass_filenames: true
 
+      # A hand-written index of the files beside it is a second copy of `ls`, and the two
+      # disagree the first time somebody adds a file and forgets the table. Nothing reports
+      # that, which is the same shape as every other second-place-a-fact-lives rule here.
+      # The provocation was an agent adding two rows for files it had just written: accurate
+      # that afternoon, unpoliced afterwards. This gate would have rejected them.
+      - id: readme-no-index
+        name: README.md indexes no files -- the directory is the index
+        entry: python scripts/check_readme_no_index.py
+        language: python
+        files: ^README\.md$
+        pass_filenames: true
+
       # The plan's numbering must agree with its own graph, and its counts with the
       # documents they came from -- and one of those documents is RFD 107a, which lives in
       # `request-for-discussion` rather than here. CI checks this repository out on its
