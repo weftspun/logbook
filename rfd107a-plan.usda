@@ -100,6 +100,58 @@ evaluation-only twice over: derived from the holdout, and generated."""
             custom uniform token kind = "holdout"
         }
 
+        def "EncodeOnlyGroundTruth" (
+            doc = """Only ground-truth GLBs are encoded into latents.
+
+The latents rule in CLAUDE.md forbids `encode(decode(z))`, and the reading that
+matters is what makes that case bad rather than the syntax of it: a decoded mesh
+has already been through the VAE, so re-encoding it compounds the codec's error
+and calls the result ground truth. An asset we hold has not been through
+anything. Encoding an ANNY GLB is therefore not the forbidden case and never
+was -- the prohibition is on the round trip, not on the encoder.
+
+So the supervision target for a decode-only transformer is the latent of the
+TRUE geometry, encoded once from the asset. It is not recovered from a
+reconstruction, which is what /Rfd107a/Findings/F04 found no interface for.
+
+GROUND TRUTH IS PER-DIMENSION, NOT PER-FILE, AND THIS IS THE HALF THAT BITES. A
+GLB is ground truth in the dimensions that were CONSTRUCTED and not in the
+dimensions that were FITTED. ANNY's phenotypes are constructed: a parameter
+vector decodes to a coherent body every time, so identity and shape are true by
+construction. Pose is fitted -- solved against targets from a clip -- and
+nothing in the pipeline refuses a bad solution.
+
+A latent encodes both halves at once, so it inherits the weaker guarantee. An
+encode of a body with an inverted knee is a confidently wrong training target,
+and it looks exactly like a right one.
+
+THE REST POSE IS THE SUBSET WITH NO FITTED HALF AT ALL, and it is the one to
+start on. A body at rest was not solved against anything, so the pose is not
+merely valid, it is not a fit -- there is no residual, no correspondence and no
+range of motion to check, because no joint was asked to move. Phenotype is
+constructed and pose is trivially so, which makes an ANNY rest-pose GLB ground
+truth in every dimension a latent encodes.
+
+That is a supply rather than a technicality. The schema is sized for roughly 23k
+identities, so the phenotype axis alone offers that many wholly clean encode
+targets before a single pose is retargeted, and the encoder can be supervised on
+them while the pose gate is still being built.
+
+TAKING THE REST POSE IS ITSELF AN INTERFACE, AND IT IS ON THE PITFALLS LIST.
+"Anatomically safe" is not the same as "easy to obtain": PITFALLS 8 records that
+an identity's `pose_parameters` is NOT the rest pose, and PITFALLS 1 prices
+reading the wrong one at 55 mm on an adult -- about an adult wrist -- and 500 mm
+on a child, near seven and a half stacked soda cans. `rest_bone_heads` pairs with
+`rest_vertices` and never with `vertices`. So the carve-out is safe on the
+anatomy and needs the pairing checked, which is a different check from the range
+of motion one and not a substitute for it."""
+        )
+        {
+            custom uniform token kind = "latents"
+            custom bool restPoseNeedsRomGate = 0
+            custom bool posedNeedsRomGate = 1
+        }
+
         def "QwenDomainsAreOneModel" (
             doc = """Photoreal and colour sketch both come from Qwen-Image-Edit, so their
 errors correlate. Report the two together when scoring. An average over four domains
@@ -108,6 +160,103 @@ where two share a model overstates the spread."""
         {
             custom uniform token kind = "scoring"
         }
+    }
+
+    # ---------------------------------------------------------------------------------
+    # THE TRAINING SHAPE, AND THE BRAKE ON IT.
+    #
+    # This scope is CLOSED. Every component names the finding that motivated it through
+    # `justifiedBy`, and `check_rfd107a_plan.py` fails when a component points at a finding
+    # that does not exist. So a new head, tier or loss cannot be added by agreeing to it in
+    # conversation: it needs a Findings entry first, and the logbook rule is that a finding
+    # records a MEASUREMENT rather than an intention.
+    #
+    # The brake is written because the shape expanded five times in one session -- a 3D
+    # latent, an unsupervised tier, reinforcement learning, scene geometry, a consistency
+    # term -- and each addition was locally reasonable. Nothing was checking the rate. What
+    # this cannot stop is a bad measurement; what it stops is expansion with none at all.
+    # ---------------------------------------------------------------------------------
+    def Scope "TrainingShape" (
+        doc = """Two components: what kind of thing a body latent is, and where the heads
+that predict it hang.
+
+RETRACTED 2026-08-23: DECODE-ONLY TRAINING. `L01_FrozenLatentSpace` recorded a decision
+that the VAE is pretrained and never trained here -- encoder run offline and once over
+ground-truth GLBs to make targets, loss taken in latent space, decoder run only at
+inference. It claimed two things beyond that: `encode(decode(z))` becomes unreachable
+rather than merely forbidden, and two branches predicting into a space neither of them
+trains are aligned by construction with no loss term pulling them together.
+
+It is withdrawn, and the reason is not that it was shown wrong. Its `justifiedBy` pointed
+at F04, which measures that the packaged Pixal3D returns a decoded mesh and never surfaces
+its SLAT. That is a measurement about where a latent can be OBTAINED; it says nothing about
+whether the space should be FROZEN, so the component was borrowing a finding in exactly the
+way L04 was, and survived the diet only because it was read less closely.
+
+The choice at that point was to manufacture a justification or to withdraw the decision.
+Withdrawing is the honest one: a decision propped up by a citation that does not support it
+teaches the next reader that citations here are decorative.
+
+WHAT REOPENS. Whether the VAE is trained, fine-tuned or frozen. Where the latent space
+comes from at all, given F04 leaves no interface. Whether the two branches need an explicit
+alignment term after all, since the argument that they did not depended on the freezing.
+
+WHAT DOES NOT REOPEN. The two surviving components stand on their own findings and never
+depended on this one -- F10 measures the body/scene split, F11 measures the head structure.
+Neither cites a frozen space.
+
+DIETED FROM FIVE TO THREE, THEN TO TWO. THE CUTS ARE KEPT HERE RATHER THAN DELETED QUIETLY.
+
+`L05_MaskedPerSource` said the loss is masked per source. That is rule 3 of RFD 107a,
+already stated in a reviewed document, so carrying it here made a second place for one fact
+to live and a second place for it to drift. The plan holds ordering, edges and counts; it
+does not restate the rules.
+
+`L04_ConsistencyTermCarriesRealAnnotations` proposed forward-kinematicsing the predicted
+latent and comparing its projected joints to the predicted keypoints, so that a real
+photograph's annotations reach the latent with no 3D target. It is a good idea and it is
+out, because nothing has measured it. Its `justifiedBy` pointed at F10, which measures the
+body/scene split and says nothing about a consistency term -- it was borrowing a finding
+rather than having one.
+
+That borrowing is the useful part of the failure. The brake passed it, because the
+component and its citation were authored in the same edit, and a rule that lets a component
+point at ANY existing finding is weaker than it looks. So the rule is now one finding, one
+component: a finding already backing something cannot be stretched over a second thing. That
+is what would have caught L04, and it is checked.
+
+The consistency term returns when somebody measures it -- on a held-out set of ANNY renders
+where the true latent IS known, so the term can be scored against a target rather than
+argued for."""
+    )
+    {
+        def "L02_BodyLatentIsParametric" (
+            doc = """The body latent is parametric and small; the scene latent is
+structured and large. They are not two instances of one thing, which is why one code for
+both fails on dimensionality before it fails on semantics. RF-DETR's instance query is 256
+wide, which is the right order for ANNY's phenotypes plus 104 bone rotations and the wrong
+order for free-form geometry."""
+        )
+        {
+            custom uniform token kind = "space"
+            custom int instanceQueryWidth = 256
+            rel justifiedBy = </Rfd107a/Findings/F10_BodyAndSceneAreTwoLatents>
+        }
+
+        def "L03_HeadsAreParallelOnOneQuery" (
+            doc = """Keypoints and latent are parallel heads on the same 256-wide instance
+query, not a cascade. A cascade through 104 two-dimensional points discards silhouette and
+body proportion, which is the half of a body latent that pose does not carry, and it
+compounds a bad joint into a bad latent with no recovery.
+
+Sharing the query is also what aligns them: one embedding produced both, so there is no
+correspondence to establish."""
+        )
+        {
+            custom uniform token kind = "head"
+            rel justifiedBy = </Rfd107a/Findings/F11_KeypointChannelsAreCarriedNotDiagnosed>
+        }
+
     }
 
     # ---------------------------------------------------------------------------------
@@ -240,6 +389,367 @@ The same gap as the PBR bake's, which /Rfd107a/Plan/T03_PbrBake already records 
             custom string date = "2026-08-22"
             custom string evidence = "repo list | grep -i pixal -> nothing; default.xml has no matching project"
             custom bool repositoryPlacedInManifest = 0
+        }
+
+        def "F06_ProvenanceSidecarOmittedTwoRequiredFields" (
+            doc = """T04 claimed the sidecar met condition 1. Read against the code, it did
+not: two of the fields it named were never written.
+
+This task's amendment read that `omnigen2_edit.py` "writes a provenance file beside every
+batch carrying the model id, the resolved revision, the prompt, the negative prompt, the
+seed, the step count and both guidance scales". The record it actually built held eleven
+keys -- model, precision, corpus_eligible, steps, both guidance scales, seed, negative
+prompt, torch, weights_gib, outputs -- and neither `revision` nor the positive `prompt` was
+among them.
+
+Both absences defeat the condition they were cited as satisfying. Without a revision,
+`OmniGen2/OmniGen2` names a repository rather than a checkpoint, so the corpus cannot be
+regenerated from what the record says. Without the prompt, the conditioning is recoverable
+only by trusting that the module-level PROMPTS constant has not been edited since the run --
+a second place the fact lives, which is the failure the manifest-comment rule is written
+against, one layer down.
+
+Both are fixed. The revision is taken from the snapshot directory of the files actually
+downloaded rather than from a second hub API call, because an API call answers what the
+repository resolves to now and condition 1 asks what produced the data. A run that cannot
+resolve a commit now exits rather than rendering, since an unmet precondition is a FAIL and
+finding it out after the GPU time is spent is the expensive order."""
+        )
+        {
+            custom uniform token subject = "T04_QwenCheckpointHash"
+            custom string date = "2026-08-23"
+            custom string evidence = "omnigen2_edit.py record dict: no revision key, no prompt key"
+            custom int fieldsClaimed = 7
+            custom int fieldsMissing = 2
+        }
+
+        def "F13_IdentitiesWereSampledOverSixOfElevenPhenotypes" (
+            doc = """Bypassing the shared model builder cost the corpus its ancestry
+variation, and nothing reported it.
+
+`anny_rig.CORPUS_CONFIG` is the pinned configuration whose own comment says changing a field
+invalidates already-rendered shards and is a schema change. `sample_identities.py` did not
+use it. It built `anny.Anny(local_changes="default", facial_actions="all")` directly, which
+omits `phenotypes="all"`, and the two models differ:
+
+    sample_identities.py   6 phenotypes   gender age muscle weight height proportions
+    CORPUS_CONFIG         11 phenotypes   + cupsize firmness african asian caucasian
+
+So identities were drawn over six dimensions and rendered by a model carrying eleven, with
+the other five left at their defaults. Every identity in a corpus built that way carries
+DEFAULT ANCESTRY -- roughly 23k of them, in a workspace that blocklists AddBiomechanics as
+an identity source for a "narrow and inequitable population". This is narrower than the
+thing that rule excludes.
+
+Identities sampled by the old line are invalid rather than merely incomplete: they were
+drawn from a distribution the renderer does not share, so resampling is required and is not
+optional.
+
+THE FLAW WAS THE MECHANISM, NOT THE AUTHOR. Two prose guards already existed -- CORPUS_CONFIG's
+own comment, and `interface_audit.py`'s "Audit the model the corpus ACTUALLY SHIPS, not a
+bare anny.Anny." Both were correct and neither could fail a command, so every new entry
+point was a fresh chance to disagree with the pinned configuration. Three did: this one, a
+deliberate exception in `render_corpus.py`, and `check_facial_actions.py`, which produced
+the wrong reading recorded and retracted in F12.
+
+`check_corpus_model.py` replaces the prose. It enumerates every python file in the
+repository -- a fixed population, so PITFALLS 5 says enumerate rather than sample -- and
+fails any construction of `anny.Anny(` outside an allowlist of two, plus any CORPUS_CONFIG
+that stops pinning one of its six fields. The second half matters on its own: without it the
+builder could remain the only entry point while quietly configuring nothing.
+
+A deliberate exception is DECLARED rather than inferred, with `# corpus-model-exempt:` and a
+reason, because the gate cannot read intent and a marker with no reason is the comment it
+was written to replace. `render_corpus.py` carries the only one: it asserts the 19,158-vertex
+basemesh topology that `coco.pth` is indexed against, which is deliberately not the corpus
+model's 13,718-vertex body submodel.
+
+The gate is textual, so it runs with no anny, no torch and no GPU. A gate that needs a
+CUDA stack to answer is a gate that does not run in CI."""
+        )
+        {
+            custom uniform token subject = "T06_SchemaCompletion"
+            custom string date = "2026-08-23"
+            custom string evidence = "anny_rig.build_corpus_model() 11 phenotype_labels vs sample_identities.py's 6; check_corpus_model.py enumerates 28 files"
+            custom int phenotypesSampled = 6
+            custom int phenotypesRendered = 11
+            custom int bypassSitesFound = 3
+            custom bool identitiesRequireResampling = 1
+        }
+
+        def "F12_AnnysFacialActionsAreArkits52Exactly" (
+            doc = """ANNY's facial actions ARE ARKit's 52, matched by name with nothing left
+over on either side.
+
+    shared names   52 of 52
+    ARKit-only      0
+    ANNY-only       0
+
+Read from `anny` 0.6.0 under a newly declared pixi environment, comparing
+`facial_action_labels` against Apple's ARFaceAnchor.BlendShapeLocation, normalised to
+lowercase alphanumerics so a cosmetic spelling difference would not be reported as a
+semantic one. The labels are ARKit's own camelCase strings -- jawOpen, mouthShrugUpper,
+mouthUpperUpLeft, noseSneerLeft, tongueOut -- and `tongueOut` is present, which is the one
+Ozel's ARKit-to-FACS sheet omits and which DETAILS.md records MediaPipe lacking.
+
+RETRACTED: THIS ENTRY FIRST SAID ANNY SHIPS NO FACIAL ACTIONS AT ALL. It reported
+`facial_action_labels` of length 0 and concluded the model does not carry expression, that
+F02's missing 52 were an upstream capability gap rather than a renderer gap, and that
+whatever filled the gap would need building from muscles.
+
+Every part of that was wrong, and the cause is one line of the constructor:
+
+    Anny.__init__(..., local_changes: LocalChanges = "none",
+                       facial_actions: FacialActions = "none", ...)
+
+FACIAL ACTIONS ARE OPT-IN AND DEFAULT TO OFF. The first run built `anny.Anny()` with
+defaults, read the zero, and reported a property of the CONSTRUCTOR CALL as a property of
+the MODEL. `FacialActions` accepts "none", "all", or a sequence of names; at "all" the count
+is 52. `local_changes` defaults the same way, which is why that count read 0 against the
+schema's note of roughly 1184.
+
+The error is the one this workspace names most often, arriving one level up from where it
+was being watched for. The script was written because `interface_audit.py` tests
+`len(fa) == 52` and a count is the convenient proxy for a correspondence. It then read a
+default as a capability, which is the same substitution with a different quantity. A zero
+that comes from not having asked looks exactly like a zero that comes from not having any.
+
+WHAT SURVIVES. `interface_audit.py`'s check is still a count rather than a correspondence,
+and it would still report FAIL on a default-constructed model for the reason above -- so
+the interface wants the constructor pinned as well as the comparison widened. And the
+semantic caution stands untouched: a shared name is not a shared meaning. ICT-FaceKit ships
+`mouthShrugUpper` labelled "upper lip raiser", so identical names have been wrong before in
+exactly this set. What is established here is name-level identity, which is strictly more
+than was known and strictly less than agreement.
+
+THE INDEPENDENCE HAZARD IS UNAFFECTED, because it is a property of ARKit's basis rather
+than of ANNY's adoption of it. mouthShrugUpper is contingent on mouthShrugLower and applies
+only when the lips touch or are about to; a single gaze coefficient is not a gaze direction.
+A renderer sampling 52 coefficients independently emits faces that cannot occur and labels
+them true by construction, which is F08's shape on the face."""
+        )
+        {
+            custom uniform token subject = "T02_Renderer"
+            custom string date = "2026-08-23"
+            custom string evidence = "anny 0.6.0 Anny(facial_actions='all'): 52 labels, set-difference against ARFaceAnchor.BlendShapeLocation is 0 both ways"
+            custom int annyFacialActions = 52
+            custom int sharedNames = 52
+            custom bool wasRetracted = 1
+            custom bool semanticsVerified = 0
+        }
+
+        def "F11_KeypointChannelsAreCarriedNotDiagnosed" (
+            doc = """DECIDED, NOT MEASURED. Five of the keypoint head's eight channels are
+carried through the 17-to-104 change without anybody knowing what they are.
+
+The head is one 3-layer MLP emitting 8 values per keypoint per query. Channels 0 and 1
+decode to x,y -- scaled by the instance box's width and height and added to its reference
+point. Channel 7 is summed over keypoints into a per-query class-logit boost, and
+`keypoints.cpp` explains why that sum is safe: every non-active class' slots are
+zero-padded, so their contribution is provably zero. Channels 2 to 6 are read by nothing.
+
+AND NOTHING IN THIS REPOSITORY COULD READ THEM, which is the part that stops this being
+evidence they are inert. `src/loss.cpp` is 279 lines of box-and-class loss and says so in
+its own header -- focal, L1, GIoU, with only class_embed and bbox_embed trainable.
+`gen_reference_loss.py` generates boxes and targets and has no keypoint term. `oks` appears
+in no .cpp, .h or .py outside third_party. The half of the system that would consume those
+channels was never ported, so their absence here measures the port's scope rather than the
+channels' importance.
+
+THE DECISION IS ABOUT COST ASYMMETRY, NOT ABOUT IMPORTANCE. Carrying them costs six floats
+per keypoint per query -- roughly 0.75 MB per forward at 104 keypoints and 300 queries --
+and no code change, since widening num_kp carries them along. Dropping them, if they feed
+an upstream loss, surfaces as a head that trains worse for no visible reason, which is among
+the most expensive failure shapes there is because it reads as a hyperparameter problem.
+
+Labelling this a decision is the honest form, and it follows CLAUDE.md's own handling of
+generated-synthetic condition 5. A note claiming the channels are important would send the
+next reader looking for a reason, and they would find none and drop them.
+
+WHAT WOULD SETTLE IT: upstream's pose loss, read outside this checkout.
+
+A SECOND AXIS, WITH A RECORDED PRIOR FAILURE. `pred_keypoints` is
+(8, num_keypoint_classes * num_kp, num_queries, 1), and the middle axis is class-padded --
+a no-op at the current num_keypoint_classes of 1, which is what makes it dangerous. The
+reference script records having put real keypoint values at the wrong padding offset once
+already. Going to 104 touches both axes and only one of them has ever been wrong."""
+        )
+        {
+            custom uniform token subject = "T09_GgufAndHead"
+            custom string date = "2026-08-23"
+            custom string evidence = "keypoints.cpp: delta[0:2]->xy, delta[2:8] passthrough, slot 7 -> class boost; loss.cpp box/class only; no oks outside third_party"
+            custom int keypointChannels = 8
+            custom int channelsExplained = 3
+            custom bool decidedNotMeasured = 1
+        }
+
+        def "F10_BodyAndSceneAreTwoLatents" (
+            doc = """The fork was whether a body and the scene around it share one
+latent code. Answered two, on outside evidence rather than on argument.
+
+Meta's public announcement describes SAM 3D as "a suite of open source models,
+code, and data for 3D objects and human reconstruction from a single image", and
+splits it in two: "another for object and scene reconstruction and another for
+human pose and shape estimation". An organisation with no shortage of compute
+built the body model separately from the scene model, which is the cheapest
+evidence available that one code for both is the wrong shape.
+
+WHAT THE SOURCE DOES NOT ESTABLISH, STATED BECAUSE IT IS EASY TO OVERCLAIM. The
+announcement gives a data engine and 4 million concepts for SAM 3, and NO data
+detail for either SAM 3D variant -- it refers the reader elsewhere. So the
+precedent is two MODELS, publicly stated. Two separate CORPORA is a reasonable
+inference from it and is not what the page says, and the distinction matters
+because the decision being taken here is about a corpus.
+
+THE WEIGHTS ARE NOT AVAILABLE TO THIS WORKSPACE, AND THAT IS DECIDED BY AN
+EXISTING RULE. `facebook/sam-3d-body` answers HTTP 401 Unauthorized: it is
+gated. The BRIA RMBG entry already settles that class -- a licence that cannot be
+read without accepting it cannot be gated on, the same objection that keeps
+DWPose out -- so the model is excluded as a dependency whatever its terms turn
+out to say. Reading a public announcement carries no such obligation, and the
+architectural lesson is separable from the artefact.
+
+THE WORKSPACE ALREADY MADE THIS SPLIT ONE LEVEL UP. `weftspun/weftspun-keypoint`
+and `weftspun/weftspun-mesh-latents` are two goals with two manifests sharing one
+corpus. A single body-plus-scene latent would contradict a separation this
+workspace has already committed to in its own directory structure, which is a
+better reason than the precedent is.
+
+CONSEQUENCE FOR THE ENVIRONMENT RELATION, WHICH IS NOT WHAT IT LOOKS LIKE. Two
+latents does not remove the need for scene GEOMETRY. The environment still has to
+be a mesh rather than an HDRI, because occlusion truth depends on there being
+something to occlude with -- which is what /Rfd107a/Findings/F03 needs and cannot
+get from a painted backdrop. The body latent encodes the body; the scene mesh
+earns its place by casting shadows and hiding joints."""
+        )
+        {
+            custom uniform token subject = "T06_SchemaCompletion"
+            custom string date = "2026-08-23"
+            custom string evidence = "ai.meta.com/blog/segment-anything-model-3/: SAM 3D split into object/scene and human pose+shape; facebook/sam-3d-body -> HTTP 401"
+            custom int latentSpaces = 2
+            custom bool sourceEstablishesTwoCorpora = 0
+            custom bool weightsUsableHere = 0
+        }
+
+        def "F09_ThirtyFivePercentOfTheCommercialSetIsShareAlike" (
+            doc = """A directory named `commercial` is 34.9% share-alike, and
+CLAUDE.md blocklists share-alike.
+
+`filter_coco_licenses.py` keeps `Attribution-ShareAlike License`, records
+`share_alike` in the licenses relation, and says in its own docstring that
+downstream can "join-and-exclude if the org wants zero SA exposure". That
+deferral was never taken up, and the blocklist table has an unqualified CC-BY-SA
+row, so the two have been disagreeing in place. `filter_texverse.py`, written
+later, drops SA outright per the 2026-08-14 directive; the COCO filter predates it.
+
+Enumerated over both fixed populations rather than sampled:
+
+    coco_person_commercial_train2017   12,620   CC-BY 7,932   SA 4,400   other 288
+    coco_person_commercial_val2017        523   CC-BY   365   SA   156   other   2
+
+So a training fetch built from the train directory as-named would have carried
+4,400 blocklisted images, and the name is what invited that.
+
+THE HOLDOUT COUNT IS NOT CHANGED, AND THE REASON IS THE OBLIGATION RATHER THAN
+THE COUNT. Share-alike binds derivative works. Training on an image derives from
+it; scoring a model against one does not. The holdout is evaluation-only by
+definition, so its 156 SA images carry no obligation this workspace would
+breach, and `holdoutImages = 523` stands. The training side is where the licence
+bites, and that is the side that now drops them.
+
+Stated rather than left implicit, because the two numbers are about to look
+inconsistent to the next reader: 523 stays whole for evaluation while the train
+set loses 35% for training, and that is the licence working as written."""
+        )
+        {
+            custom uniform token subject = "T10_Evaluate"
+            custom string date = "2026-08-23"
+            custom string evidence = "join images.parquet to licenses.parquet: train SA 4400/12620, val SA 156/523"
+            custom int trainShareAlike = 4400
+            custom int trainFetchable = 8220
+            custom bool holdoutCountChanged = 0
+        }
+
+        def "F08_NothingRefusesAnInvertedKnee" (
+            doc = """The pose half of a GLB is unvalidated, and it is measured next door.
+
+`humanoid-rom`'s `HumanoidRom/core/SimulatorLimits.lean` reads the SOMA humanoid
+the pretrained trackers were trained against:
+
+    joints 67, limited 66, unlimited 1 (the free root)
+    limited hinge span, degrees: min 360.0, median 360.0, max 360.0
+
+Every one of the 66 limited hinges declares -180 to 180. So a knee may invert and
+an elbow may fold backwards, and the simulator raises no objection. That
+repository states plainly that the MJCF is NOT changed to match it -- the tracker
+scores 0.9996 against that file and narrowing the ranges would invalidate the
+weights -- so this is a property the corpus inherits rather than a bug somebody
+is about to fix.
+
+THE SAME FAILURE IS ALREADY IN THE T01 ENTRY, ONE LEVEL DOWN. Comparing the four
+fit routes, it records that a fit "can put every constrained joint within a
+penny's thickness and still fold an elbow the wrong way, because eighty-three of
+the 104 are unconstrained, and the residual cannot see that". A joint residual is
+the convenient proxy; anatomical validity is the quantity, and PITFALLS 4 is the
+general form.
+
+WHAT IS NEW IS THE CONSEQUENCE FOR LATENTS. While a bad pose only produced a bad
+picture, it was caught downstream by the verification loop. Encoded into a latent
+it becomes a supervision TARGET, and a wrong target is not a frame anybody looks
+at -- it is a gradient. /Rfd107a/Constraints/EncodeOnlyGroundTruth is that
+consequence written down.
+
+THE PLAN SAYS NOTHING ABOUT THIS, WHICH IS THE REPORTABLE PART. Searching all ten
+tasks and every finding for `valid`, `range of motion`, `kusudama` and
+`constraint` returns no hit that is about pose validity. Two repositories in this
+workspace do the work -- `4-entities/humanoid-rom` and
+`2-contract/swing-twist-kusudama`, which carries `JointRom.lean`, `KusGuards.lean`
+and `Adversarial.lean` -- and no task depends on either. A gate that exists and
+that nothing calls is the silent skip of PITFALLS 3, one repository wide."""
+        )
+        {
+            custom uniform token subject = "T02_Renderer"
+            custom string date = "2026-08-23"
+            custom string evidence = "HumanoidRom/core/SimulatorLimits.lean: 66 limited hinges, min/median/max span 360.0 deg"
+            custom int limitedHinges = 66
+            custom float minHingeSpanDegrees = 360.0
+            custom bool poseValidityGated = 0
+        }
+
+        def "F07_SchemaWasNotRunnableFromAnyDeclaredEnvironment" (
+            doc = """`anny_render_schema.py` imports pyarrow, and no pixi environment in
+`anny-render-corpus` declared it. Nor pandas, which `test_preflight.py` imports.
+
+So the ETNF schema -- the relations, the foreign-key graph, `validate()`, and the __main__
+block that prints the relation count -- could not be executed from any declared environment
+on any desk. That is precisely the hazard the `uv` blocklist entry describes, with no `uv`
+involved: work resting on a dependency that no file declares and no lock pins.
+
+It is visible in a number. The README's table said the schema carries 19 ETNF relations. It
+carried 20 before this change, and the sentence was untagged prose rather than a
+`<!--claim:-->`, so `check_readme_claims.py` never looked at it -- in a README whose headline
+is that every number below is machine-checked. An untagged number is an unchecked number, and
+that is the general form.
+
+Fixed by a `corpus` feature with `no-default-feature`, following the restyle feature's own
+argument: the render environment is a measuring instrument pinned to one Mitsuba and must not
+move because a parquet library did. The two counts are now tagged claims with measurements
+registered against them.
+
+WHAT THIS DID NOT FIX, STATED RATHER THAN LEFT TO BE FOUND. Nine of the README's eleven
+tagged claims still cannot be verified from any declared environment: they import `anny_rig`
+and `torch`, and no pixi feature declares either. `bvh_clip_count` reads a Google Drive path
+and measures 0 against a stated 810 on a desk where the drive is not mounted. So the claim
+gate reports 9 failures for reasons that are about the environment rather than about the
+README, and that is a separate piece of work from this one."""
+        )
+        {
+            custom uniform token subject = "T06_SchemaCompletion"
+            custom string date = "2026-08-23"
+            custom string evidence = "grep pyarrow pixi.toml -> nothing; pixi run -e corpus schema -> 24 relations, 22 foreign keys"
+            custom int readmeClaimedRelations = 19
+            custom int actualRelationsBefore = 20
+            custom int claimsStillUnverifiable = 9
         }
     }
 
@@ -476,15 +986,52 @@ AMENDED: THE EDITOR IS NO LONGER QWEN-IMAGE-EDIT. It is blocklisted -- 20.43B ne
 not produce corpus data. OmniGen2 takes the two appearances instead: 7.8B, Apache-2.0 in
 weights and code, 17.3 GiB at bf16, clean output on the same render.
 
-The condition this task exists for is met rather than owed. `omnigen2_edit.py` writes a
-provenance file beside every batch carrying the model id, the resolved revision, the prompt,
-the negative prompt, the seed, the step count and both guidance scales, and it stamps
-`corpus_eligible` false when run quantised. What remains is to carry that record into the
-corpus rows themselves rather than a sidecar."""
+THAT CLAIM WAS TOO STRONG, AND THE CODE SAYS SO. This paragraph read that the condition
+"is met rather than owed" because `omnigen2_edit.py` writes a provenance file "carrying the
+model id, the resolved revision, the prompt, the negative prompt, the seed, the step count
+and both guidance scales". Two of those seven were never written: the record held no
+`revision` and no positive `prompt`. /Rfd107a/Findings/F06 has the reading. So condition 1
+was unmet in the sidecar as well as in the rows, and the task was recorded as further along
+than it was.
+
+RAN 2026-08-23, AND THE STRUCTURAL HALF IS DONE. The record now carries the resolved commit,
+taken from the snapshot directory of the files actually downloaded rather than from a second
+hub API call, and it carries the positive prompt per output rather than leaving it in a
+module constant. A run that cannot resolve a commit exits instead of rendering.
+
+The corpus rows exist as schema. `anny_render_schema.py` gains four relations --
+`edit_models`, `edit_prompts`, `edit_runs`, `edited_renders` -- with five foreign keys, and
+the sidecar's fields map onto them one for one. Two of the four generated-synthetic
+conditions are now structural rather than remembered: condition 1 is foreign-key integrity,
+so an edited image whose model, prompt or run has gone missing fails the validator instead of
+entering a corpus unprovenanced; condition 2 is a check that the generated pixels never share
+`render_data` with the constructed ones.
+
+`corpus_eligible` is deliberately NOT a column. It is a pure function of `precision`, so
+storing it would make a derivable column, which ETNF forbids and which would give the fact a
+second place to live. `validate()` derives it and fails a corpus carrying quantised output.
+
+MEASURED, BECAUSE A GATE THAT CANNOT FAIL CERTIFIES THE DEFECT. `test_edit_provenance.py`
+builds its own minimal corpus rather than needing a clean one, and red-tests six corruptions:
+a quantised run, a pool merge into `render_data`, a deleted `edit_runs` relation, a dangling
+`edit_run_id`, an orphan source `render_id`, and a deleted `edit_models` relation. All six
+fire and the clean fixture reports zero problems.
+
+    GREEN  clean corpus -> 0 problems
+    RED    6 of 6 corruptions caught, 0 unproven
+
+WHAT IS STILL OWED, AND IT IS BLOCKED RATHER THAN SKIPPED. Nothing writes `edited_renders`
+rows yet, because a row needs a `render_id` to join to and the renderer emits npz, json and
+png rather than parquet. That is T02's output format, not this task's, so the writer lands
+when the renderer does. The sidecar says so in its own completion message rather than
+implying the record is in the corpus."""
         )
         {
             custom int order = 4
             custom uniform token state = "build"
+            custom bool provenanceSchemaLanded = 1
+            custom bool provenanceRowsWritten = 0
+            custom int negativeControls = 6
             custom string title = "Condition 1 on the editor path"
             custom string measurement = "every returned frame carries its model, revision and instruction"
             custom string[] blocks = ["photoreal appearance", "colour sketch appearance"]
