@@ -285,11 +285,28 @@ abliterated model comes with no statement of what its edit cost, and a Heretic b
 the objective it was optimised against. If a future candidate offers neither, it is the crude
 case whatever it is called.
 
-**What to do instead, and it is cheaper than either.** Nobody has measured that the stock model
-refuses. Scoring an edit is a grading task, not a generation task, and the refusal behaviour
-that abliteration targets is tuned against requests to _produce_ content. `Qwen/Qwen3.5-9B` is
-Apache-2.0 and ungated: run it on the frames in question and count refusals. An edit removing a
-behaviour nobody has observed is a change with no measurement behind it.
+**MEASURED: THE STOCK MODEL DOES NOT REFUSE, SO THE PREMISE WAS FALSE.** This section first
+said the count was one run away. It has been run. `Qwen/Qwen3-VL-8B-Instruct` with the stock
+`EditScore/EditScore-Qwen3-VL-8B-Instruct` adapter, no uncensoring of any kind, was asked to
+grade twelve restyles of an unclothed ANNY render:
+
+    1024x1024 inputs   0 refusals of 12
+    512x512 inputs     0 refusals of 12
+
+Every frame came back with a number. A refusal here would be a non-answer rather than a low
+score, and there were none of either kind — the low scores it did return are judgements about
+edits that ignored their instruction, which is the model working.
+
+So the reason for reaching for an edited base did not exist. Nobody had checked, and the check
+cost one run against images we already had. That is the whole entry: refusal tuning targets
+requests to _produce_ content, grading is not producing, and an unmeasured assumption sent us
+looking for weights that somebody had modified in ways nobody characterised.
+
+The sizing came free with it, and it is the useful half now. At NF4 the weights are 6.29 GiB
+and the peak is 8.60 GiB on 1024x1024 inputs — over the ASUS UGen300's 8 GB — but 6.75 GiB at
+512x512, which is `image_max_pixels` in EditScore's own training config. The vision tokens were
+the budget, not the weights, and feeding the model four times the pixels it was trained on was
+our error rather than the device's limit.
 
 ### `rf-detr-keypoint-data` is the holdout, not a training set
 
