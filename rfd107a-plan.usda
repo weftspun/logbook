@@ -256,17 +256,43 @@ Needs no renderer, no GPU and no install. If the answer is no, author poses by h
 pose-source rule already permits it, and a hand-authored pose is constructed rather than
 generated.
 
-BLOCKED, AND NOT ON EFFORT: THE 810 CLIPS ARE NOT ANYWHERE. `extract_poses.py` names three
-sources -- dataset-100style-godot-clips, dataset-o3de-motion-matching-clips and
-dataset-vr-balance-disturbance. All three return 404 in the weftspun organisation, none
-appears in this goal manifest or in the mesh-latents one or in the archived one, and no clip
-GLB or extracted-positions parquet exists on disk. The `-godot-clips` naming suggests a
-conversion we produced and no longer hold.
+RETRACTED WITHIN THE HOUR: THE CLIPS ARE NOT MISSING, THEY ARE NOT IN GIT. An earlier
+revision of this entry said all three sources returned 404 and left nothing on disk, and
+concluded the first task on the critical path could not run. That was a search of the wrong
+places. They sit on the shared drive `0360 - Datasets Allowlist`, and the counts are now data
+rather than prose:
 
-So the first task on the critical path cannot run, and `mocapClips = 810` below is checked
-against prose rather than against data: the gate confirms the number appears in the RFD, not
-that the clips exist. Deciding this is a sourcing question -- refetch and place the upstream
-sets, or author poses by hand -- rather than a scheduling one."""
+    dataset-100style-godot-clips      810 glb   CC-BY-4.0
+    dataset-100style-mocap            810 bvh   CC-BY-4.0, Zenodo record 8127870
+    dataset-o3de-motion-matching-clips 24 .res  Apache-2.0 OR MIT
+
+`mocapClips = 810` now agrees with a file count and not only with a sentence in the RFD, which
+is the first time that quantity has been checked against anything. Both 100STYLE sets carry a
+`CITATION.cff` naming the licence, which is the evidence the pose-source rule asks for.
+
+`dataset-vr-balance-disturbance` is the one still absent, from the drive as well as from git.
+
+WHERE THEY LIVE IS A GOOGLE SHARED DRIVE, AND THAT IS NOT A PLACEMENT. An earlier line here
+said to add them to a goal manifest, which cannot be done: `repo` clones git remotes, and a
+Drive folder has nothing to clone, no revision to pin and no history to diff. The Sides rule
+still applies -- a source nobody can name is drift -- but the answer is not a `<project>`.
+
+What would satisfy it is an index in git rather than the bytes: the drive path, the per-dataset
+file count, the licence taken from each `CITATION.cff`, and a hash per file, so a second desk
+can tell whether the folder it mounted is the folder this plan was measured against. Sizes and
+hashes are not recorded here because walking that mount is slow enough to time out, and a
+number nobody waited for is not a measurement.
+
+Two consequences worth keeping in view. The drive is present on one desk and absent on the
+next exactly as an untracked directory would be, so "we have the clips" is a statement about
+this machine. And the folder can change with no diff anywhere, which is what the hashes would
+catch.
+
+Separately, `dataset-100style-mocap` holds `base.zip` and `labelled.zip`, which the
+archive-format rule forbids: recompress to `.zst` and verify payload hashes before deleting the
+originals.
+
+None of this blocks projecting twenty poses and looking at them."""
         )
         {
             custom int order = 1
