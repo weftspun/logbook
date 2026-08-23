@@ -260,6 +260,8 @@ Sources excluded from corpora, with the reason:
 | EasyDiffusion outputs, seethrough PSDs             | secondary generation                                                                                                                |
 | **Blender**                                        | renders are not reproducible across versions — see below                                                                            |
 | **Qwen-Image-Edit** (2509/2511)                    | 20.4B: runs here only quantised, and quantised it corrupts — see below                                                              |
+| **P3-SAM / Hunyuan3D-Part**                        | territory-restricted licence: excludes EU, UK and South Korea — see below                                                           |
+| **Krea 2 / krea2-turbo**                           | revenue-gated licence, and the planned deployment was Q4 — see below                                                                |
 | **BRIA RMBG**                                      | gated and non-commercial — see below                                                                                                |
 | `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
 | **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
@@ -468,6 +470,49 @@ as well as forbidden.
 
 OmniGen2 is the replacement and needs no exception — 7.8B, Apache-2.0, 17.3 GiB at bf16, clean
 output on the same input.
+
+### P3-SAM's licence excludes territories, which is a different failure
+
+`Tencent-Hunyuan/Hunyuan3D-Part` ships under Tencent's own Community License Agreement, and it
+carves out the EU, the UK and South Korea. RFD 0041 records the model as MIT; that is wrong, and
+`logbook-rfd0016-model-repos.md` already corrected it by reading the real LICENSE file.
+
+The other entries here block on what the output may be used for. This one blocks on **who may
+run the tool at all**, which is a worse property for a workspace whose collaborators and
+customers are not enumerated in advance. A restriction on the output can at least be traced
+through a corpus; a restriction on the operator means the same command is permitted at one desk
+and forbidden at another, and nothing in a manifest or a build log would show the difference.
+
+Passthrough does not rescue it either, and it is worth saying why, because the OpenRAIL entry
+does rescue passthrough uses. That exemption turns on the restriction travelling with a single
+artefact to whoever supplied it. A territory exclusion does not travel with the artefact — it
+sits on the person invoking the model — so the distinction the OpenRAIL rule is built on has
+nothing to bite.
+
+### Krea 2 is revenue-gated, and that propagates
+
+The Krea 2 Community License permits commercial use free only below \$1M company-wide annual
+revenue and fewer than 50 seats; above either line it needs a separate enterprise agreement.
+That is a use restriction, and this workspace already has a rule about those: OpenRAIL-M is
+blocked as a _generator_ because restrictions travel into whatever trains on the output, where
+no licence check can see them afterwards. Krea 2 is a text-to-image generator, so its outputs
+are corpus data, so the same reasoning applies unchanged.
+
+The revenue threshold makes it worse rather than better, and the reason is worth stating.
+Whether the licence is satisfied depends on _who deploys the trained model_, which is not a fact
+about our corpus and not one we can settle in advance. A term that clears today for a small
+deployer and fails for their customer is a term that cannot be gated on at corpus-build time.
+`logbook-rfd0016-model-repos.md` already flagged this as "clears the bar for a small deployer,
+not for every possible customer" — this entry is that flag resolved rather than carried.
+
+**The second reason is newer and independent.** RFD 0016's plan for it was the Q4_K_M GGUF set:
+33.8 GB bf16 down to 9.30 GB quantised, because that is what fits. Generated-synthetic condition
+5 now says quantised weights do not produce corpus data, so the deployment shape that made the
+model affordable is the one that disqualifies its output. Even with the licence resolved, the
+plan on file would not have produced usable corpus.
+
+Neither reason depends on the other. A permissive re-licence would leave the Q4 problem, and a
+48 GB card running bf16 would leave the revenue gate.
 
 ### A corpus generator must be a checkpoint we hold
 

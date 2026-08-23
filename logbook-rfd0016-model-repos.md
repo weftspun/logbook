@@ -71,6 +71,24 @@ Separately, the base image that produced its two sample meshes is gone: `weftspu
 was never pushed to a registry, its recipe was never tracked, and both Docker contexts now report
 zero images. What survives is a digest in a build log that fetches nothing.
 
+**#9 `interactor-krea2-turbo-text-to-image` is blocklisted, on the ground this table already
+named.** The row called its licence "revenue-gated ... clears the bar for a small deployer, not
+for every possible customer" and ranked it 9 rather than excluding it. That flag is now
+resolved: a use restriction whose satisfaction depends on who deploys the trained model cannot
+be gated on when the corpus is built, which is the same reasoning that blocks OpenRAIL-M as a
+generator.
+
+A second reason arrived independently. The row's plan was the Q4_K_M GGUF set, since 33.8 GB
+bf16 is what made quantisation necessary — and quantised weights do not produce corpus data.
+The shape that made the model affordable is the shape that disqualifies its output, so the plan
+on file could not have produced usable corpus even with the licence resolved.
+
+**#10 `interactor-p3sam-mesh-segmentation` is blocklisted.** The row ranked it last because
+"the licence is a real, unresolved gate", and it is now resolved as a block rather than as a
+correction to make. Tencent's Community License Agreement excludes the EU, the UK and South
+Korea, so the constraint is on who may run the tool rather than on what its output may do — and
+that is invisible to every check this workspace has. RFD 0041's own record still says MIT.
+
 **OmniGen2 is the replacement for the editing slot**, and it needs no exception: 7.8B,
 Apache-2.0 in weights and code, 17.3 GiB at bf16, clean output on the same input that defeated
 Qwen. At NF4 it fits 8 GB — 4.33 GiB of weights, 6.72 GiB peak — which is the only figure here
