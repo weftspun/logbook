@@ -6,8 +6,9 @@
 # measurements repeatedly, it should carry a helper rather than rely on recall.
 #
 # Recall duly failed. Across one working session the rule was broken at least three times in
-# prose that reported 5.00e-05 px, 0.012 mm and 0.356 m with no anchor, each time by an author
-# who had read the rule that morning. A habit that survives knowing about it needs a gate.
+# prose that reported a pixel error, a quantisation step of about a sixtieth of a credit card,
+# and a stride gap of some five soda cans, each time bare, by an author who had read the rule
+# that morning. A habit that survives knowing about it needs a gate.
 #
 # WHAT COUNTS AS PAIRED. A number with a length unit is paired when a household anchor appears
 # within the same sentence or the one after it. The anchors are CLAUDE.md's own list, which is
@@ -22,7 +23,7 @@
 # coordinates in pixels unless a physical unit is attached. The rule is about physical extent,
 # and widening it to every number would make the gate noise and get it switched off.
 #
-# THE DETECTION FLOOR IS STATED BECAUSE IT IS NOT ZERO. An anchor phrased in words the list does
+# THE DETECTION FLOOR, STATED BECAUSE IT EXCEEDS ZERO. An anchor phrased in words the list does
 # not contain -- "the width of a hair", "a grain of rice" -- reads as unpaired here. That is a
 # false alarm rather than a miss, which is the safer direction for a gate to be wrong in, and
 # adding the phrase to CLAUDE.md fixes it in both places at once.
@@ -44,7 +45,7 @@ defmodule HouseholdUnits do
   @measure ~r/(?<![$\w])\d+(?:\.\d+)?(?:e-?\d+)?\s?(?:mm|cm|m)\b|\b\d+(?:\.\d+)?\s?(?:metres|meters|millimetres|millimeters)\b/
   # Sentence-ish spans, so an anchor in the next sentence still counts as pairing.
   #
-  # THE PERIOD IS NOT ALWAYS A FULL STOP. Splitting on every one cut "0.02 m" into "02 m" and
+  # A PERIOD SOMETIMES SITS INSIDE A NUMBER. Splitting on every one cut "0.02 m" into "02 m" and
   # then reported the fragment as unpaired while the anchor sat in the half that was thrown
   # away. A stop is a period with no digit on both sides of it.
   @sentence ~r/(?:[^.!?\n]|(?<=\d)\.(?=\d))+[.!?]?/
@@ -53,8 +54,15 @@ defmodule HouseholdUnits do
 
   def anchors, do: @anchors
 
+  # USE, NOT MENTION, the same rule check_prose_tropes.exs arrived at by rejecting itself. A
+  # gate for unpaired measurements must contain unpaired measurements: its controls are
+  # specimens, and its documentation quotes the anchor table. Counting those made this file fail
+  # its own check seven times while every document it polices passed.
+  @quoted ~r/"[^"\n]*"/
+
   @doc "Bare measurements in a text: {line_hint, matched_measure} for each unpaired one."
   def bare(text) do
+    text = Regex.replace(@quoted, text, " ")
     spans = Regex.scan(@sentence, text) |> Enum.map(fn [s] -> s end)
 
     spans

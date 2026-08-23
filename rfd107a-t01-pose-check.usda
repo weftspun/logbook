@@ -61,9 +61,15 @@ one edit and a typo cannot make two spellings of one thing."""
         }
 
         def Scope "Bones" (
-            doc = """The twenty-one ANNY bones `extract_poses.py`'s BONE_MAP constrains. Not
-104: the source skeleton has no fingers, no face and no toes, which is why this check answers
-whether the poses are worth rendering and not whether the labels are complete."""
+            doc = """The twenty-one ANNY bones `extract_poses.py`'s BONE_MAP constrains.
+
+CORRECTED: an earlier revision said "not 104" here and treated the twenty-one as the layout,
+which is the old COCO-shaped answer. They are targets. ANNY's makehuman topology carries 104
+bones and every one of these twenty-one names is among them, so a fit that places these leaves
+the other eighty-three determined by the rig -- knuckles from the wrist, toes from the foot.
+The 104-point sheet waits on that fit being done by ANNY's vertex-fitting procedure rather than
+by the centroid alignment first attempted, which reached a mean residual of about a soda can's
+width where a same-rig fit has previously reached a thousandth of a penny's thickness."""
         )
         {
             custom uniform token[] name = [
