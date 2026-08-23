@@ -34,6 +34,49 @@ unblock other repos, is the license clean and confirmed, and is the upstream API
 | 9   | [interactor-krea2-turbo-text-to-image](https://github.com/weftspun/interactor-krea2-turbo-text-to-image)             | 0042 | **Krea 2 Community License** — revenue-gated: free commercial use only under $1M company-wide annual revenue and <50 seats; larger orgs need a separate enterprise license. Not Apache/MIT. Flagged for RFD 0028's owner: this clears the bar for a small deployer, not for every possible customer.                            | Largest model in the catalog (33.8 GB bf16 → 9.30 GB Q4_K_M), most build complexity (4-part staged load), and the only license here that's conditionally gated rather than clean or resolved. Also: the exact HF repo id/filenames for the Q4_K_M GGUF set are an unconfirmed guess.                                                                                          |
 | 10  | [interactor-p3sam-mesh-segmentation](https://github.com/weftspun/interactor-p3sam-mesh-segmentation)                 | 0041 | **Tencent Community License Agreement** (territory-restricted — excludes EU/UK/South Korea), not MIT as RFD 0041 states. Verified by reading the real `LICENSE` file at `Tencent-Hunyuan/Hunyuan3D-Part` directly; confirmed no separately-MIT standalone P3-SAM repo exists.                                                   | Lowest priority: the license is a real, unresolved gate (territory exclusions are a hard block for some customers, not a formality), and `_run_upstream()` isn't yet verified against P3-SAM's real `model.py`. Needs RFD 0041's owner to correct the license field before this can ship.                                                                                     |
 
+## Amended: two of those rankings did not survive being run
+
+The table above ranked by readiness, and readiness was judged from licences and API surfaces
+rather than from execution. Two rows have since been executed. Both moved, and one moved off the
+list entirely.
+
+**#3 `interactor-qwen-image-edit` is blocklisted.** Its stated gap was that the diffusers call
+"isn't verified yet". It is verified now and it fails. Qwen-Image-Edit-2511 is 20.43B parameters
+needing about 38 GB at bf16 against this desk's 24 GB, so it runs quantised or not at all — and
+quantised weights do not produce corpus data, which is generated-synthetic condition 5. The
+quantised path is also broken rather than merely forbidden: at NF4 it peaks at 11.9 GiB and
+speckles every pixel, scoring 0.098 to 0.719 on silhouette agreement against a control of 0.222.
+
+Three explanations were eliminated rather than assumed. Not the torch version, since the
+corruption `interactor-pixal3d` recorded under torch 2.4.1 reproduces unchanged on 2.11.0+cu128.
+Not the guidance, since diffusers silently ignores `true_cfg_scale` when no negative prompt is
+supplied and enabling it changed nothing. Not the input, since OmniGen2 edits the same render
+cleanly. 8-bit would have isolated the quantiser and cannot run here: step 3 of 30 at 4,925 s/it
+with 42 GB resident, 37 hours projected for one image.
+
+The ranking's own logic is what to correct, not just the row. "Clean licence, standalone, high
+catalog value" was true of this model and told us nothing about whether it works: Apache-2.0 in
+base and control alike, and unusable on the only hardware we have. A readiness table that never
+runs anything ranks paperwork.
+
+**#2 `interactor-pixal3d-image-to-textured-mesh` is not ship-ready.** It is described as
+verbatim-complete with no `NotImplementedError` anywhere, which is true of the code and not of
+the image. Its `requirements-hfdemo.txt` pins a natten wheel whose kernels are **sm_90 only** —
+182 cubins, all sm_90a, and no PTX at all, read off the wheel with `cuobjdump` — so on any
+non-Hopper rental it imports cleanly and then dies inside a diffusion step. vast.ai rents
+whatever is free. Triton also JIT-compiles a C shim on first launch, so a compiler and the
+python headers are runtime dependencies of an image that compiles nothing.
+
+Separately, the base image that produced its two sample meshes is gone: `weftspun-pixal3d:cdbb2bb`
+was never pushed to a registry, its recipe was never tracked, and both Docker contexts now report
+zero images. What survives is a digest in a build log that fetches nothing.
+
+**OmniGen2 is the replacement for the editing slot**, and it needs no exception: 7.8B,
+Apache-2.0 in weights and code, 17.3 GiB at bf16, clean output on the same input that defeated
+Qwen. At NF4 it fits 8 GB — 4.33 GiB of weights, 6.72 GiB peak — which is the only figure here
+that speaks to the ASUS UGen300, though fitting the memory is not the same as compiling for the
+device.
+
 ## License corrections made to the org's own record
 
 Two RFDs stated a license that didn't match the real upstream when checked directly:
