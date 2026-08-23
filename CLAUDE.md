@@ -259,6 +259,7 @@ Sources excluded from corpora, with the reason:
 | `caldata_*_jc.parquet`                             | pre-cut derivatives; use originals                                                                                                  |
 | EasyDiffusion outputs, seethrough PSDs             | secondary generation                                                                                                                |
 | **Blender**                                        | renders are not reproducible across versions — see below                                                                            |
+| **Qwen-Image-Edit** (2509/2511)                    | 20.4B: runs here only quantised, and quantised it corrupts — see below                                                              |
 | **BRIA RMBG**                                      | gated and non-commercial — see below                                                                                                |
 | `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
 | **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
@@ -431,6 +432,42 @@ a segmentation model of its own is the drift this table exists to stop.
 The distinction worth keeping: the render case removes the dependency, and the photograph case
 replaces it. Only the second is a substitution, and only the second needs measuring against
 what it replaced.
+
+### Qwen-Image-Edit corrupts at the only precision this desk can run it
+
+Apache-2.0 in base and weights alike, and that is not the problem. It is 20.43B parameters,
+57.7 GB on disk, needing roughly 38 GB at bf16 against a 24 GB card. So it runs here at NF4 or
+not at all, and generated-synthetic condition 5 says quantised weights do not produce corpus
+data. That alone closes it as a corpus generator on this hardware.
+
+What makes it a blocklist entry rather than a hardware note is that the quantised path is also
+measurably broken. At NF4 it peaks at 11.9 GiB and returns images speckled across every pixel —
+camera-correct and noise-corrupted, the figure roughly in place under a layer of grain. The
+silhouette scores run 0.098 to 0.719 against a control of 0.222, so some frames are barely
+distinguishable from a body that moved 20 px.
+
+Three explanations were eliminated rather than assumed, and each cost a run:
+
+- **Not the torch version.** `interactor-pixal3d` recorded the same corruption with torch 2.4.1
+  the one constant, and asked for a retest at 2.6 or newer. On torch 2.11.0+cu128, diffusers
+  0.40.0 and bitsandbytes 0.50.1 it is unchanged, so that hypothesis is retired rather than
+  carried forward.
+- **Not the guidance.** The first run passed `true_cfg_scale=4.0` with no negative prompt, which
+  diffusers silently ignores. Re-run with guidance actually on: same corruption, twice the time.
+- **Not the input.** OmniGen2 edits the identical grey matte render cleanly, so the frame is not
+  out of distribution in a way that would break any editor.
+
+8-bit would have isolated the quantiser and is not available here: int8 puts about 20 GB of
+weights on a 24 GB card, and the run reached step 3 of 30 at 4,925 s/it with 42 GB resident in
+host RAM — 37 hours projected for one image, against 3.3 s/it at NF4.
+
+**Not blocked for hardware that can hold it.** A card with 48 GB or more runs the published
+bf16 path, which nothing here has tested and nothing here impugns. The entry says something
+narrower: on this desk the only runnable mode is the one condition 5 forbids, and it is broken
+as well as forbidden.
+
+OmniGen2 is the replacement and needs no exception — 7.8B, Apache-2.0, 17.3 GiB at bf16, clean
+output on the same input.
 
 ### A corpus generator must be a checkpoint we hold
 
