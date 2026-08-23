@@ -148,27 +148,6 @@ the archived manifest still lists projects, and a project placed only there is u
 placement is what a _live_ goal manifest says, not what the last revision of a read-only one
 says.
 
-**Temporary files.** `.local` at the workspace root, and nowhere else. Intermediate outputs,
-working scripts, downloads being verified — anything that would otherwise go to `/tmp` or sit
-beside the code that produced it, where a `git add -A` can reach it.
-
-It is a **repository** rather than an ignored directory, because the workspace root is a `repo`
-client and not a git repository: a loose `.local/` there is tracked by nothing, invisible to
-`repo status`, and present on one desk and absent on the next. An unplaced directory at the
-root is drift whatever it holds, which is what **Sides** already says. So it is a `<project>`
-in each goal manifest, and its `.gitignore` is deny-all with three named exceptions — itself,
-`.gitkeep`, and its README.
-
-Measured with a negative control, because an ignore that is never tested against a dirty tree
-certifies nothing: with `scratch.txt` and `sub/deep.bin` present, `git add -A` stages nothing
-and `git status --short` reports nothing, while `git add -f scratch.txt` **does** stage it.
-That last one is the limit — an ignore is not a lock. It stops the accident, not the intent.
-
-The division it enforces is the one that is otherwise kept by memory. A measurement goes to the
-logbook next to its apparatus; a deliverable goes to a PSD with its `.cff`, pushed before
-teardown. `.local` is where work that does _not_ matter goes, so the two are told apart by
-location. Treat it as though it disappears, because on any other desk it already has.
-
 **Deliverables.** Video-ready assets land as PSD or a video/image intermediate with `.cff`
 title and metadata, before any pod teardown. PSD because it carries lossless vector and
 raster layers.
