@@ -173,7 +173,15 @@ front. But COCO's `visible` means an annotator could see the body part, not that
 would be learning a different meaning of the word than the labels it is scored against.
 
 This lands on the int8 attribute T06 is meant to settle, so the three states want defining
-against COCO's convention rather than inheriting whatever the z-test returns."""
+against COCO's convention rather than inheriting whatever the z-test returns.
+
+MEASURED, AND THE NUMBERS SAY WRONG RATHER THAN UNSETTLED. At TOL = 0.02 m the rest pose
+reports 14 of 104 joints unoccluded from the front, 42 from three-quarter and 53 from the
+side. Fewest visible from the front is backwards -- the front is where a viewer sees most of a
+body. What the test measures is how deep a joint centre sits beneath the surface along the view
+ray, which is largest for a torso seen face-on, so the count tracks body thickness rather than
+visibility. The constant is left alone: changing it would be choosing a number to make an
+output look right, and visibility decides a supervised label."""
         )
         {
             custom uniform token subject = "T06_SchemaCompletion"
@@ -246,7 +254,19 @@ figure, and ask whether a character artist would draw that pose.
 
 Needs no renderer, no GPU and no install. If the answer is no, author poses by hand: the
 pose-source rule already permits it, and a hand-authored pose is constructed rather than
-generated."""
+generated.
+
+BLOCKED, AND NOT ON EFFORT: THE 810 CLIPS ARE NOT ANYWHERE. `extract_poses.py` names three
+sources -- dataset-100style-godot-clips, dataset-o3de-motion-matching-clips and
+dataset-vr-balance-disturbance. All three return 404 in the weftspun organisation, none
+appears in this goal manifest or in the mesh-latents one or in the archived one, and no clip
+GLB or extracted-positions parquet exists on disk. The `-godot-clips` naming suggests a
+conversion we produced and no longer hold.
+
+So the first task on the critical path cannot run, and `mocapClips = 810` below is checked
+against prose rather than against data: the gate confirms the number appears in the RFD, not
+that the clips exist. Deciding this is a sourcing question -- refetch and place the upstream
+sets, or author poses by hand -- rather than a scheduling one."""
         )
         {
             custom int order = 1
@@ -388,13 +408,24 @@ This is a change to the server, not a note. Condition 1 of the generated-synthet
 requires the generating model, checkpoint and conditioning recorded WITH THE DATA, and a
 hash in a server log is not with the data. The CycleGAN server already returns
 `checkpoint_sha256` per result for exactly this reason. Until it lands, two of the four
-appearances cannot enter a corpus."""
+appearances cannot enter a corpus.
+
+AMENDED: THE EDITOR IS NO LONGER QWEN-IMAGE-EDIT. It is blocklisted -- 20.43B needs about
+38 GB at bf16 against a 24 GB card, so here it runs only quantised, and quantised weights do
+not produce corpus data. OmniGen2 takes the two appearances instead: 7.8B, Apache-2.0 in
+weights and code, 17.3 GiB at bf16, clean output on the same render.
+
+The condition this task exists for is met rather than owed. `omnigen2_edit.py` writes a
+provenance file beside every batch carrying the model id, the resolved revision, the prompt,
+the negative prompt, the seed, the step count and both guidance scales, and it stamps
+`corpus_eligible` false when run quantised. What remains is to carry that record into the
+corpus rows themselves rather than a sidecar."""
         )
         {
             custom int order = 4
             custom uniform token state = "build"
-            custom string title = "Condition 1 on the Qwen path"
-            custom string measurement = "every returned frame carries its checkpoint hash and its instruction"
+            custom string title = "Condition 1 on the editor path"
+            custom string measurement = "every returned frame carries its model, revision and instruction"
             custom string[] blocks = ["photoreal appearance", "colour sketch appearance"]
             custom string cff = """
 - type: software
@@ -424,7 +455,7 @@ moves every joint."""
         {
             custom int order = 5
             custom uniform token state = "measure"
-            custom string title = "Find the strength that keeps the pose and still looks like a sketch"
+            custom string title = "Find the conditioning that keeps the pose and still restyles"
             custom string measurement = "joint drift against the source render, swept over strength"
             custom bool mayBeEmpty = 1
             custom string cff = """
@@ -433,6 +464,22 @@ moves every joint."""
 # not a project in this goal manifest.
 """
             rel dependsOn = [</Rfd107a/Plan/T04_QwenCheckpointHash>]
+
+            custom string amended = """AMENDED: `strength` IS NOT THE KNOB, AND THE KNOB WAS FOUND BY GETTING IT WRONG.
+
+OmniGen2 replaces Qwen-Image-Edit and exposes no `strength` at all: it takes a text guidance
+scale, an image guidance scale and a negative prompt. The window this task asks for is over
+those instead.
+
+One measurement already exists, and it was nearly recorded backwards. The same edit scored
+0.776 silhouette agreement one way and 0.328 the other, which was reported as the cost of
+four-bit quantisation. The two runs differed in the negative prompt as well: upstream passes a
+quality-control default and our script passed an empty string. Holding the prompt fixed, NF4
+scores 0.825 and bf16 0.776, so the prompt moved the result and precision did not measurably
+move it.
+
+That makes the negative prompt the first axis of the window, ahead of either guidance scale,
+and it makes the sweep worth running as a sweep rather than as a pair."""
         }
 
         def "T06_SchemaCompletion" (
