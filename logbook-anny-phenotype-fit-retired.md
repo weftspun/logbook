@@ -25,13 +25,13 @@ ANNY's rest pose against the corpus's crouch frame and reported a mean near 552 
 is a crouch and not a skeleton -- and would have disproved a correct hypothesis. Residuals against the corpus's 76 pose-invariant lengths,
 in millimetres, with a stacked penny at 1.52 mm:
 
-| region      |  n | default body | six phenotypes | eleven, simplex |
-| ----------- | -- | ------------ | -------------- | --------------- |
-| leg         | 10 | 16.38        | 3.59           | 3.59            |
-| hand        | 50 | 1.14         | 1.64           | 1.64            |
-| arm         |  6 | 4.05         | 10.56          | 10.56           |
-| head/neck   |  7 | 16.41        | 15.77          | 15.77           |
-| overall     | 76 | 4.89         | 4.03           | 4.03            |
+| region    | n   | default body | six phenotypes | eleven, simplex |
+| --------- | --- | ------------ | -------------- | --------------- |
+| leg       | 10  | 16.38        | 3.59           | 3.59            |
+| hand      | 50  | 1.14         | 1.64           | 1.64            |
+| arm       | 6   | 4.05         | 10.56          | 10.56           |
+| head/neck | 7   | 16.41        | 15.77          | 15.77           |
+| overall   | 76  | 4.89         | 4.03           | 4.03            |
 
 Three findings, none of them the one that was expected.
 
@@ -85,12 +85,12 @@ Measured because the image differential's error floor depends on it, and because
 `llvm_ad_rgb` at one thread as byte-identical while every script here calls `cuda_ad_rgb`. Two
 renders of one scene at one seed, differenced:
 
-| samples per pixel | `cuda_ad_rgb`         | `llvm_ad_rgb` |
-| ----------------- | --------------------- | ------------- |
-| 16                | identical             | identical     |
-| 64                | 5.8e-11 mean          | identical     |
-| 256               | 9.0e-09 mean          | identical     |
-| 1024              | 1.9e-08 mean          | identical     |
+| samples per pixel | `cuda_ad_rgb` | `llvm_ad_rgb` |
+| ----------------- | ------------- | ------------- |
+| 16                | identical     | identical     |
+| 64                | 5.8e-11 mean  | identical     |
+| 256               | 9.0e-09 mean  | identical     |
+| 1024              | 1.9e-08 mean  | identical     |
 
 The disagreement **grows** with sample count, which is the signature of a nondeterministic
 reduction order in the parallel accumulation rather than a seeding bug, so passing a seed will
