@@ -66,6 +66,30 @@ transfer, a teacher's predictions. Permitted in a training corpus only when all 
    is excellent on its teacher's output and mediocre on the world;
 4. evaluation uses real or constructed data only. A model measured on its own generation
    distribution has not been measured.
+5. the generator runs at its published precision. **Quantised weights do not produce corpus
+   data**, whatever they cost to run.
+
+Condition 5 is measured rather than cautious, and the measurement is what makes it a rule. The
+same OmniGen2 edit, same seed, same guidance, same instruction, run twice on one render:
+
+    precision   silhouette agreement with the render it was given
+    bf16        0.776 photographic, 0.833 sketch
+    NF4         0.328 photographic, 0.806 sketch
+
+At four bits the photographic prompt stopped editing and started generating — the body turned
+to face the camera where the input is a three-quarter view from behind. The pixels were clean,
+which is the trap: nothing about that frame looks broken, and every one of its 104 keypoints is
+wrong. Qwen-Image-Edit at NF4 fails more loudly on the same input, speckling every pixel.
+
+The failure lands exactly where it cannot be tolerated. A label is true because the geometry it
+describes is the geometry in the picture, and a quantised generator drifts off the conditioning
+first and off the appearance second. So the cheap-looking saving buys frames whose labels are
+lies, and the verification pass then discards them, which is the expensive way to save nothing.
+
+**Quantisation for device qualification is a different activity and stays permitted.** Fitting
+OmniGen2 into 6.72 GiB to learn whether it clears the ASUS UGen300's 8 GB is a measurement
+about the device; its outputs are evidence about memory, not corpus data. The rule is about
+destination, the same way the OpenRAIL entry is.
 
 The old blanket ban read "generative-model outputs never enter training corpora". It was too
 coarse: it forbade legitimate distillation while saying nothing about the actual hazard, which
