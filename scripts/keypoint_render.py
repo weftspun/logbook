@@ -48,6 +48,7 @@ missing category that is simply absent from the picture reads as a category that
 exist. This is the same finding RFD 0121 records: hair and garments are not modelled.
 """
 import json
+import math
 import os
 import sys
 
@@ -263,8 +264,17 @@ def write_lottie(path, views, cols, labels, parents, fps=2):
     ind = 1
 
     def held(frames):
-        """Lottie keyframes that do not tween."""
-        return [{"t": i, "s": v, "h": 1} for i, v in enumerate(frames)] + [{"t": n}]
+        """Lottie keyframes that do not tween.
+
+        THE LAST KEYFRAME CARRIES A VALUE. Players tolerate a bare `{"t": n}` terminator and
+        lottie-web writes one, but the specification makes `s` required on every keyframe, and
+        omitting it failed validation 207 times -- once per shape layer. It also cascaded: with
+        the animated branch rejected, a position property fell back to the static branch and
+        reported "not of type number" on a keyframe object, which points at the wrong line
+        entirely. Repeating the final value costs a few bytes and makes the document conform.
+        """
+        kf = [{"t": i, "s": v, "h": 1} for i, v in enumerate(frames)]
+        return kf + [{"t": n, "s": frames[-1], "h": 1}]
 
     for i, par in enumerate(parents):          # bones first, so joints paint over them
         if par < 0:
@@ -276,7 +286,10 @@ def write_lottie(path, views, cols, labels, parents, fps=2):
                    "ks": {"a": 1, "k": [{"t": k, "h": 1,
                                          "s": [{"i": [[0, 0], [0, 0]], "o": [[0, 0], [0, 0]],
                                                 "v": vv, "c": False}]}
-                                        for k, vv in enumerate(verts)] + [{"t": n}]}},
+                                        for k, vv in enumerate(verts)]
+                                    + [{"t": n, "h": 1,
+                                        "s": [{"i": [[0, 0], [0, 0]], "o": [[0, 0], [0, 0]],
+                                               "v": verts[-1], "c": False}]}]}},
                   {"ty": "st", "nm": "stroke", "lc": 2, "lj": 1, "w": {"a": 0, "k": 2},
                    "c": {"a": 0, "k": [r / 255, g / 255, b / 255, 1]}, "o": {"a": 0, "k": 100}},
                   {"ty": "tr", "p": {"a": 0, "k": [0, 0]}, "a": {"a": 0, "k": [0, 0]},
@@ -295,7 +308,9 @@ def write_lottie(path, views, cols, labels, parents, fps=2):
         pos = held([[round(float(v["jp"][i][0]), 4), round(float(v["jp"][i][1]), 4)]
                     for v in views])
         # Visibility rides on fill opacity, because a hollow marker would need a stroke.
-        opa = held([100 if v["seen"][i] else 35 for v in views])
+        # `[100]` rather than `100`: a keyframe's `s` is an array even for a scalar property,
+        # which players accept either way and the specification does not.
+        opa = held([[100] if v["seen"][i] else [35] for v in views])
         shapes = [{"ty": "el", "nm": "dot", "p": {"a": 1, "k": pos},
                    "s": {"a": 0, "k": [10, 10]}},
                   {"ty": "fl", "nm": "fill", "c": {"a": 0, "k": [r / 255, g / 255, b / 255, 1]},
@@ -445,9 +460,13 @@ for tag, az in (("front", 0.0), ("three-quarter", 40.0), ("side", 90.0)):
 
 nlay, lottie_err, dbytes = write_lottie(os.path.join(OUT, "anny-keypoints-multiview.json"),
                                 VIEWS, COLS, labels, parents)
-print("lottie: %d views, %d layers, worst coordinate error %.2e px, "
-      "%.1f MB of embedded depth, all bit-exact"
-      % (len(VIEWS), nlay, lottie_err, dbytes / 1e6))
+# A pixel is not a physical quantity, so the error is reported in both. At FOV 40 degrees and
+# the ~2.99 m the body sits at, 1024 px spans 2.18 m, which is 2.13 mm a pixel.
+_MM_PER_PX = 2 * 2.99 * math.tan(math.radians(FOV / 2)) * 1000 / W
+print("lottie: %d views, %d layers, worst coordinate error %.2e px = %.0f nm at the body "
+      "(one seven-thousandth of a credit card's thickness), %.1f MB of embedded depth, "
+      "all bit-exact"
+      % (len(VIEWS), nlay, lottie_err, lottie_err * _MM_PER_PX * 1e6, dbytes / 1e6))
 
 # Legend grouped by layer, including the layers with no bone, greyed.
 ROWH, COLW, PAD = 20, 250, 12
