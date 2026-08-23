@@ -17,10 +17,15 @@ yellows glare and blues sink, so a reader sees brightness differences that encod
 misses the lightness differences that encode chain position. OKHSL holds perceived lightness
 constant across hue, which is the only reason lightness is free to carry a second variable.
 
+RETRACTED: IT IS 8 TAGS AND 16 WITHOUT A BONE, NOT 9 AND 15. This docstring said 9 until a
+run printed 8, and the code could never have produced 9: `tag_for` has eight distinct return
+values, so the count was wrong when written rather than having drifted. Measured on this
+desk -- driven: bottomwear, footwear, handwear, head, irides, legwear, neck, topwear.
+
 TAG ORDER IS ANATOMICAL, head to foot, so adjacent tags sit 15 degrees apart and the head
 group, the leg group and so on each occupy a contiguous arc.
 
-THE GAP THIS MAKES VISIBLE. ANNY drives 9 of See-Through's 24 tags. The other 15 have no bone
+THE GAP THIS MAKES VISIBLE. ANNY drives 8 of See-Through's 24 tags. The other 16 have no bone
 in the skeleton at all, and the legend lists them greyed rather than omitting them, because a
 missing category that is simply absent from the picture reads as a category that does not
 exist. This is the same finding RFD 0121 records: hair and garments are not modelled.
@@ -33,7 +38,10 @@ import numpy as np
 import torch
 import drjit as dr
 from PIL import Image, ImageDraw
-from coloraide import Color
+# ColorAll rather than Color: coloraide keeps OKHSL out of the default registry, so
+# `Color('okhsl', ...)` raises `not a registered color space` on 8.11.1. The whole
+# colour scheme above is OKHSL, so this import is load-bearing rather than stylistic.
+from coloraide.everything import ColorAll as Color
 
 sys.path.insert(0, os.environ.get(
     "POSE_CONSENSUS_PYTHON", "../3-interactor/pose-consensus/python"))
@@ -222,6 +230,18 @@ def write_exr(path, z, hit, overlay):
 # 20 mm, about thirteen stacked credit cards. THIS NUMBER IS NOT SETTLED: joint centres sit
 # inside the body, so a strict test calls every joint occluded and a loose one passes every
 # joint. It decides a supervised label, so it needs deciding on its own terms.
+#
+# MEASURED, AND THE NUMBERS SAY IT IS WRONG RATHER THAN MERELY UNSETTLED. At this tolerance
+# the rest pose reports 14 of 104 joints unoccluded from the front, 42 from three-quarter and
+# 53 from the side. A front view showing the FEWEST visible joints is backwards: the front is
+# where a viewer sees most of a body. What the test actually measures is how deep each joint
+# centre sits beneath the surface along the view ray, and that is largest for a torso seen
+# face-on, so the count tracks body thickness rather than visibility.
+#
+# It is left as it is, and reported, because changing it would be picking a number to make an
+# output look right. Deciding it needs a definition of what a visible joint is -- surface
+# depth at the projected pixel, or the joint's own radius -- and that is RFD 107a's work, not
+# a constant to nudge here.
 TOL = 0.02
 manifest = {"seed": SEED, "space": "okhsl", "s": 0.95,
             "encoding": {"hue": "see-through layer", "hue_jitter_deg": 12.0,
