@@ -1,5 +1,22 @@
 """Sample corpus renders: Mitsuba depth, keypoints coloured by See-Through layer in OKHSL.
 
+WHAT IT WRITES, AND WHY IT IS ONE FILE. A PNG per view to look at, and one Lottie holding
+everything else: 104 joints and 103 bones as vectors carrying their float positions, names,
+parents and visibility, plus each view's depth pass embedded as a data-URI asset. Lottie takes
+rasters the way SVG does, so the container never forces a choice between vectors and pixels.
+Earlier revisions wrote OpenEXR, then a 32-bit PSB and a sidecar SVG; both are gone.
+
+THE DEPTH STAYS EXACT, WHICH TOOK GETTING WRONG FIRST. A PNG channel is 8 bits and depth is a
+32-bit float in metres, so the IEEE pattern is split across RGBA rather than scaled into a
+range. That is lossless by construction and asserted on every write by decoding the bytes back
+and comparing; a single flipped bit fails it. Scaling into 16-bit grey would have quantised this
+render's 0.813 m span at 0.012 mm a step -- about a sixtieth of a credit card -- trading an
+exact measurement for a smaller file.
+
+ONLY DEPTH IS STORED. The matte is `depth > 0` and the shading is a ramp between the near and
+far planes, so both are derivable and neither is written, for the same reason a parquet here
+carries no derivable column.
+
 WHAT THE COLOUR MEANS, which is the whole design:
 
     HUE            which See-Through layer the joint drives
@@ -195,36 +212,157 @@ def srgb_to_linear(u8):
     return np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4).astype(np.float32)
 
 
-def write_exr(path, z, hit, overlay):
-    """Two layers in one EXR: depth as the default layer, skeleton as `skeleton.*`.
+def write_lottie(path, views, cols, labels, parents, fps=2):
+    """The viewpoints as one Lottie animation, with no in-between frames invented.
 
-    The default layer carries Z AND A. Without the coverage channel, background has to be
-    encoded in Z itself, and every sentinel for it is a number a reader can mistake for a
-    depth -- 0 reads as the camera plane, a large value reads as a far surface. A separate
-    alpha says "nothing here" in a way that cannot be confused with a measurement.
+    WHY HOLD KEYFRAMES AND NOT INTERPOLATION, which is the whole correctness argument. Lottie
+    tweens between keyframes by default, and a tween between two camera viewpoints is a lie:
+    projected joints do not travel in straight 2D lines while a camera swings around a body, so
+    a linear in-between puts every joint somewhere the geometry never was. Each keyframe is
+    therefore marked `h: 1` -- hold -- so every displayed frame is a rendered viewpoint and
+    nothing between them is asserted. Smooth motion is bought by rendering more viewpoints, not
+    by inventing them.
 
-    Channel names without a prefix form the default layer; `skeleton.` prefixed channels form
-    a second one. tev, DJV and Nuke all group them that way.
+    WHY THE ERROR IS BOUNDED BY ROUNDING ALONE. These coordinates are not traced from pixels;
+    they come from the same camera projection the labels do, so there is no vectorisation step
+    to be inaccurate. The only loss is the decimal places written, and the check below measures
+    exactly that rather than trusting it.
+
+    NO BORDERS, same as the SVG: joints are fill-only ellipses, and a bone's stroke is the bone
+    itself rather than an outline around a shape.
     """
-    zc = z.detach().cpu().numpy().astype(np.float32)
-    hc = hit.detach().cpu().numpy()
-    ov = np.asarray(overlay, dtype=np.uint8)
-    rgb = srgb_to_linear(ov[..., :3])
-    alpha = (ov[..., 3].astype(np.float32) / 255.0)
-    planes = np.concatenate([
-        np.where(hc, zc, 0.0).astype(np.float32)[..., None],
-        hc.astype(np.float32)[..., None],
-        rgb * alpha[..., None],                       # premultiplied, as Mitsuba tags it
-        alpha[..., None],
-    ], axis=-1)
-    names = ['Z', 'A', 'skeleton.R', 'skeleton.G', 'skeleton.B', 'skeleton.A']
-    bmp = mi.Bitmap(planes, pixel_format=mi.Bitmap.PixelFormat.MultiChannel,
-                    channel_names=names)
-    bmp.write(path)
-    back = mi.Bitmap(path)
-    got = [c.name for c in back.struct_()]
-    assert got == names, "EXR channels came back as %r" % got
-    return got
+    import base64
+    import io
+    import json
+
+    import numpy as np
+    from PIL import Image as PILImage
+
+    def depth_png(depth):
+        """float32 metres -> lossless RGBA8 PNG, one byte per octet of the IEEE pattern.
+
+        A PNG channel is 8 bits and depth is a 32-bit float, so the float is split across RGBA
+        rather than scaled into a range. That is lossless by construction and measured to be:
+        decoded back the array is bit-identical, and flipping one bit makes the check fail.
+        Scaling into 16-bit grey would have quantised 0.813 m at 0.012 mm a step, and thrown
+        away the exactness for a smaller file.
+        """
+        bits = depth.astype(np.float32).view(np.uint32)
+        rgba = np.stack([(bits >> s) & 0xFF for s in (0, 8, 16, 24)], -1).astype(np.uint8)
+        buf = io.BytesIO()
+        PILImage.fromarray(rgba, "RGBA").save(buf, "PNG", compress_level=9, optimize=True)
+        raw = buf.getvalue()
+        back = np.asarray(PILImage.open(io.BytesIO(raw)).convert("RGBA")).astype(np.uint32)
+        rec = (back[..., 0] | (back[..., 1] << 8) | (back[..., 2] << 16)
+               | (back[..., 3] << 24)).astype(np.uint32).view(np.float32)
+        assert np.array_equal(rec, depth.astype(np.float32)), "depth did not survive the PNG"
+        return "data:image/png;base64," + base64.b64encode(raw).decode("ascii"), len(raw)
+
+    n = len(views)
+    layers = []
+    ind = 1
+
+    def held(frames):
+        """Lottie keyframes that do not tween."""
+        return [{"t": i, "s": v, "h": 1} for i, v in enumerate(frames)] + [{"t": n}]
+
+    for i, par in enumerate(parents):          # bones first, so joints paint over them
+        if par < 0:
+            continue
+        r, g, b = cols[i]
+        verts = [[[round(float(v["jp"][par][0]), 4), round(float(v["jp"][par][1]), 4)],
+                  [round(float(v["jp"][i][0]), 4), round(float(v["jp"][i][1]), 4)]] for v in views]
+        shapes = [{"ty": "sh", "ind": 0, "nm": "bone",
+                   "ks": {"a": 1, "k": [{"t": k, "h": 1,
+                                         "s": [{"i": [[0, 0], [0, 0]], "o": [[0, 0], [0, 0]],
+                                                "v": vv, "c": False}]}
+                                        for k, vv in enumerate(verts)] + [{"t": n}]}},
+                  {"ty": "st", "nm": "stroke", "lc": 2, "lj": 1, "w": {"a": 0, "k": 2},
+                   "c": {"a": 0, "k": [r / 255, g / 255, b / 255, 1]}, "o": {"a": 0, "k": 100}},
+                  {"ty": "tr", "p": {"a": 0, "k": [0, 0]}, "a": {"a": 0, "k": [0, 0]},
+                   "s": {"a": 0, "k": [100, 100]}, "r": {"a": 0, "k": 0},
+                   "o": {"a": 0, "k": 100}}]
+        layers.append({"ddd": 0, "ind": ind, "ty": 4, "nm": "bone_%d" % i, "sr": 1, "ao": 0,
+                       "ks": {"o": {"a": 0, "k": 100}, "r": {"a": 0, "k": 0},
+                              "p": {"a": 0, "k": [0, 0, 0]}, "a": {"a": 0, "k": [0, 0, 0]},
+                              "s": {"a": 0, "k": [100, 100, 100]}},
+                       "shapes": [{"ty": "gr", "nm": "g", "it": shapes}],
+                       "ip": 0, "op": n, "st": 0, "bm": 0})
+        ind += 1
+
+    for i in range(len(labels)):
+        r, g, b = cols[i]
+        pos = held([[round(float(v["jp"][i][0]), 4), round(float(v["jp"][i][1]), 4)]
+                    for v in views])
+        # Visibility rides on fill opacity, because a hollow marker would need a stroke.
+        opa = held([100 if v["seen"][i] else 35 for v in views])
+        shapes = [{"ty": "el", "nm": "dot", "p": {"a": 1, "k": pos},
+                   "s": {"a": 0, "k": [10, 10]}},
+                  {"ty": "fl", "nm": "fill", "c": {"a": 0, "k": [r / 255, g / 255, b / 255, 1]},
+                   "o": {"a": 1, "k": opa}},
+                  {"ty": "tr", "p": {"a": 0, "k": [0, 0]}, "a": {"a": 0, "k": [0, 0]},
+                   "s": {"a": 0, "k": [100, 100]}, "r": {"a": 0, "k": 0},
+                   "o": {"a": 0, "k": 100}}]
+        layers.append({"ddd": 0, "ind": ind, "ty": 4, "nm": "joint_%d_%s" % (i, labels[i]),
+                       "sr": 1, "ao": 0,
+                       "ks": {"o": {"a": 0, "k": 100}, "r": {"a": 0, "k": 0},
+                              "p": {"a": 0, "k": [0, 0, 0]}, "a": {"a": 0, "k": [0, 0, 0]},
+                              "s": {"a": 0, "k": [100, 100, 100]}},
+                       "shapes": [{"ty": "gr", "nm": "g", "it": shapes}],
+                       "ip": 0, "op": n, "st": 0, "bm": 0})
+        ind += 1
+
+    # THE DEPTH RIDES INSIDE THE ANIMATION, because Lottie embeds rasters the way SVG does:
+    # an asset with a data URI and an `ty: 2` image layer pointing at it. One raster per view,
+    # held to that view's frame so it changes with the vectors above it.
+    #
+    # ONLY DEPTH IS EMBEDDED. The matte is `depth > 0` and the shaded body is a ramp between the
+    # near and far planes, so both are derivable and neither is stored -- the same reason a
+    # parquet here carries no derivable column.
+    assets, png_bytes = [], 0
+    for k, v in enumerate(views):
+        uri, nbytes = depth_png(v["depth"])
+        png_bytes += nbytes
+        assets.append({"id": "depth_%d" % k, "w": W, "h": H, "u": "", "p": uri, "e": 1})
+        layers.append({"ddd": 0, "ind": ind + k, "ty": 2, "nm": "depth_%s" % v["tag"],
+                       "refId": "depth_%d" % k, "sr": 1, "ao": 0,
+                       "ks": {"o": {"a": 0, "k": 100}, "r": {"a": 0, "k": 0},
+                              "p": {"a": 0, "k": [W / 2, H / 2, 0]},
+                              "a": {"a": 0, "k": [W / 2, H / 2, 0]},
+                              "s": {"a": 0, "k": [100, 100, 100]}},
+                       "ip": k, "op": k + 1, "st": 0, "bm": 0})
+
+    doc = {"v": "5.7.4", "fr": fps, "ip": 0, "op": n, "w": W, "h": H, "ddd": 0,
+           "nm": "anny-keypoints-multiview", "assets": assets, "layers": layers,
+           "meta": {"views": [v["tag"] for v in views],
+                    "hold": "every keyframe is h=1; no frame between viewpoints is interpolated",
+                    "source": "camera projection, not traced from pixels",
+                    "depth_encoding": "float32 metres, IEEE bits across RGBA8, lossless",
+                    "derivable_not_stored": ["matte = depth > 0", "shading = ramp(depth)"]}}
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(doc, fh)
+
+    # THE ERROR, MEASURED. Read it back and compare every joint against the float it came from.
+    got = json.load(open(path, encoding="utf-8"))
+    worst = 0.0
+    for lay in got["layers"]:
+        if not lay["nm"].startswith("joint_"):
+            continue
+        i = int(lay["nm"].split("_")[1])
+        for k, kf in enumerate(lay["shapes"][0]["it"][0]["p"]["k"][:-1]):
+            src = views[k]["jp"][i]
+            worst = max(worst, abs(kf["s"][0] - float(src[0])), abs(kf["s"][1] - float(src[1])))
+    # And the embedded depth, decoded from the file rather than from the array it came from.
+    for k, v in enumerate(views):
+        uri = [a for a in got["assets"] if a["id"] == "depth_%d" % k][0]["p"]
+        raw = base64.b64decode(uri.split(",", 1)[1])
+        back = np.asarray(PILImage.open(io.BytesIO(raw)).convert("RGBA")).astype(np.uint32)
+        rec = (back[..., 0] | (back[..., 1] << 8) | (back[..., 2] << 16)
+               | (back[..., 3] << 24)).astype(np.uint32).view(np.float32)
+        assert np.array_equal(rec, v["depth"]), "embedded depth for %s is not exact" % v["tag"]
+
+    n_layers = len(got["layers"])
+    return n_layers, worst, png_bytes
 
 
 # 20 mm, about thirteen stacked credit cards. THIS NUMBER IS NOT SETTLED: joint centres sit
@@ -251,6 +389,7 @@ manifest = {"seed": SEED, "space": "okhsl", "s": 0.95,
             "layers_driven": sorted(groups), "layers_without_bone": missing,
             "keypoints": []}
 
+VIEWS = []
 for tag, az in (("front", 0.0), ("three-quarter", 40.0), ("side", 90.0)):
     cam, eye, target, up = camera(az)
     z, hit = render(cam, eye, target, up)
@@ -292,9 +431,23 @@ for tag, az in (("front", 0.0), ("three-quarter", 40.0), ("side", 90.0)):
             d.ellipse(box, outline=COLS[i], width=2)
     img.save(os.path.join(OUT, "anny-%s-keypoints-okhsl.png" % tag))
 
-    write_exr(os.path.join(OUT, "anny-%s.exr" % tag), z, hit, over)
+    seen_flags = []
+    for i in range(N):
+        x, y = float(jp[i][0]), float(jp[i][1])
+        xi, yi = int(round(x)), int(round(y))
+        on = 0 <= xi < W and 0 <= yi < H and hc[yi, xi]
+        seen_flags.append(bool(on and jz[i] <= zc[yi, xi] + TOL))
+    VIEWS.append({"tag": tag, "jp": jp, "seen": seen_flags,
+                  "depth": np.where(hc, zc, 0.0).astype(np.float32)})
+
     print("%-14s depth %.3f..%.3f m   body %d px   %d of %d joints unoccluded"
           % (tag, lo, hi, int(hit.sum()), nvis, N))
+
+nlay, lottie_err, dbytes = write_lottie(os.path.join(OUT, "anny-keypoints-multiview.json"),
+                                VIEWS, COLS, labels, parents)
+print("lottie: %d views, %d layers, worst coordinate error %.2e px, "
+      "%.1f MB of embedded depth, all bit-exact"
+      % (len(VIEWS), nlay, lottie_err, dbytes / 1e6))
 
 # Legend grouped by layer, including the layers with no bone, greyed.
 ROWH, COLW, PAD = 20, 250, 12
