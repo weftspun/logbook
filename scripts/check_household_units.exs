@@ -60,9 +60,26 @@ defmodule HouseholdUnits do
   # its own check seven times while every document it polices passed.
   @quoted ~r/"[^"\n]*"/
 
+  # A TABLE IS ONE SPAN, NOT A ROW PER SENTENCE. A residual table pairs its numbers with a
+  # `pennies` column, and the anchor sits in the header where a row-by-row window cannot see it.
+  # Scoring rows separately flagged five paired measurements and pushed the author into
+  # rewriting a good table as prose -- the same mistake the index gate caused with `foot.R`.
+  # Contiguous pipe-led lines are joined so the header travels with its rows.
+  defp fold_tables(text) do
+    text
+    |> String.split("\n")
+    |> Enum.chunk_by(&String.starts_with?(String.trim_leading(&1), "|"))
+    |> Enum.map(fn chunk ->
+      if String.starts_with?(String.trim_leading(hd(chunk)), "|"),
+        do: Enum.join(chunk, " ") <> ".",
+        else: Enum.join(chunk, "\n")
+    end)
+    |> Enum.join("\n")
+  end
+
   @doc "Bare measurements in a text: {line_hint, matched_measure} for each unpaired one."
   def bare(text) do
-    text = Regex.replace(@quoted, text, " ")
+    text = text |> fold_tables() |> then(&Regex.replace(@quoted, &1, " "))
     spans = Regex.scan(@sentence, text) |> Enum.map(fn [s] -> s end)
 
     spans
@@ -162,7 +179,18 @@ defmodule HouseholdUnits do
       {"an anchor in the previous sentence still pairs",
        "A penny is 1.52 mm. Thirteen of those is 19.8 mm.", 0},
       {"i - 1 does not wrap to the end of the file",
-       "The span is 4.3 mm and nothing explains it.", 1}
+       "The span is 4.3 mm and nothing explains it.", 1},
+      # A table pairs through its header, which a row-by-row window cannot see.
+      {"a table header pairs every row",
+       "| target | residual | pennies |
+| --- | --- | --- |
+| root | 107.7 mm | 71 |
+", 0},
+      {"a table with no anchor anywhere still fails",
+       "| target | residual |
+| --- | --- |
+| root | 107.7 mm |
+", 1}
     ]
 
     IO.puts("controls:")

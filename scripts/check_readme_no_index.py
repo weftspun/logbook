@@ -1,159 +1,154 @@
-"""Gate: README.md carries no index of the files beside it.
+"""Gate: a document carries no index of the files beside it.
 
 WHY THIS EXISTS. A hand-written index of a directory is a second copy of `ls`, and the two
-disagree the first time somebody adds a file and forgets the table. Nothing reports that.
-The directory is the index, `git ls-files` is the index, and a table claiming to be one is
-a claim that goes stale silently -- which is the same failure the `.local` rule, the
-manifest rule and the submodule rule are all written against: a second place a fact lives,
-visible to nothing that checks.
-
-The immediate provocation was an agent adding two rows to this repository's README for
-files it had just written. The rows were accurate that afternoon. That is exactly the
-problem: an index is accurate when it is written and unpoliced afterwards, so it decays
+disagree the first time somebody adds a file and forgets the table. Nothing reports that. The
+rows were accurate the afternoon they were written, which is exactly what turns a stale index
 into a confident, wrong answer about what is here.
 
-WHAT COUNTS AS AN INDEX ROW. A markdown table row, or a list item, whose FIRST cell names
-a file or a directory -- in backticks or as a link. Two shapes, both of them indexes:
+WHAT COUNTS AS AN INDEX ROW. A table row or a list item whose FIRST cell names a file or a
+directory, in backticks or as a link:
 
     | `todo.md`  | the running logbook |
     - [todo.md](todo.md) - the running logbook
 
-WHAT DOES NOT COUNT, and this distinction is the whole reason the check reads the first
-cell rather than grepping for filenames. Prose that names a file is fine: "an entry records
-what was measured" needs to be able to say `check_comment_density.py` without tripping a
-gate. So does a table whose subject is something other than the file tree -- a table of
-measurements with a filename in a later column stays legal.
+Prose that names a file is fine, and so is a table whose subject is something other than the
+file tree: a measurement table with a filename in a later column stays legal.
 
-WHETHER THE FILE EXISTS IS NOT THE TEST. A row pointing at a file that is present is an
-index that will rot; a row pointing at one that is gone has rotted already. Both fail, and
-for the same reason, so existence is never consulted.
+WHETHER THE FILE EXISTS IS NOT THE TEST. A row pointing at a present file is an index that will
+rot; a row pointing at a missing one has rotted already. Both fail for the same reason, so
+existence is never consulted.
 
-Usage:
-    python check_readme_no_index.py [path ...]     default: README.md in this repository
-    python check_readme_no_index.py --self-test    the controls, each must FAIL
+REWRITTEN TWICE, AND BOTH REASONS ARE WORTH KEEPING.
 
-Exit code is non-zero if any index row is found, and on any control that fails to fail.
+First, it parsed by hand -- `line.strip().startswith("|")`, a regex to split cells, another to
+find list markers -- while `check-rfd-structure.py` next door already parsed markdown with
+markdown-it. A gate that reasons about table structure should use the parser rather than
+approximate it, and this one now walks the CommonMark token stream: rows come from `tr_open`,
+cells from `th_open`/`td_open`, and a first cell is a file reference only when its inline
+content is a single code span or link.
+
+Second, and this is the one that caused a false accusation: the old pattern was
+`^[\\w.\\-/]+(\\.\\w+|/)$`, which reads any dotted token as a filename. It flagged `foot.R`, an
+ANNY bone in a residual table, as an index row -- and the author rewrote a perfectly good table
+into prose to satisfy it rather than fixing the gate. A dot is not an extension. The extension
+must be one this workspace actually uses, or the name must carry a path separator.
+
+DETECTION FLOOR. An index row naming a file whose extension is absent from the list below reads
+as legal. That is a miss rather than a false alarm, and the fix is to add the extension when a
+new kind of file arrives, which is a visible edit rather than a silent drift.
 """
-
 import pathlib
 import re
 import sys
 
-HERE = pathlib.Path(__file__).resolve().parent
-REPO = HERE.parent
-DEFAULT = REPO / "README.md"
+from markdown_it import MarkdownIt
 
-# A path-shaped token: `todo.md`, `scripts/`, [x](y.py). Extensions are not enumerated,
-# because the next file here will have one nobody listed.
-BACKTICKED = re.compile(r"^`([^`]+)`$")
-LINKED = re.compile(r"^\[[^\]]*\]\(([^)]+)\)$")
-PATHLIKE = re.compile(r"^[\w.\-/]+(\.\w+|/)$")
+# Tables are GFM rather than CommonMark, so the preset has to include them.
+MD = MarkdownIt("commonmark").enable("table")
 
-
-def first_cell(line):
-    """The first cell of a table row, or the first token of a list item. None otherwise."""
-    stripped = line.strip()
-    if stripped.startswith("|"):
-        cells = [c.strip() for c in stripped.strip("|").split("|")]
-        return cells[0] if cells else None
-    if re.match(r"^[-*+]\s+\S", stripped):
-        rest = stripped[1:].strip()
-        # Up to the first separator a row uses between name and description.
-        return re.split(r"\s+[-–—:]\s+|\s{2,}", rest)[0].strip()
-    return None
+# Extensions this workspace writes. A dotted token whose suffix is absent here is a name that
+# happens to contain a dot -- `foot.R`, `spine02.L`, `v1.0` -- and not a file.
+EXTENSIONS = {
+    "md", "rst", "txt", "py", "ex", "exs", "eex", "sh", "bash", "ps1",
+    "usda", "usdc", "usdz", "json", "toml", "lock", "xml", "yaml", "yml", "cff",
+    "parquet", "csv", "png", "jpg", "jpeg", "exr", "psb", "psd", "svg", "glb", "gltf",
+    "bvh", "pt", "pth", "safetensors", "gguf", "so", "dll", "cpp", "h", "hpp", "rs", "go",
+}
 
 
-def names_a_file(cell):
-    if not cell:
+def names_a_file(text):
+    """True when `text` is a path or a filename with an extension we recognise."""
+    t = text.strip().strip("`")
+    if not t or " " in t:
+        return False
+    if t.endswith("/"):
+        return True
+    if "/" in t and re.match(r"^[\w.\-/]+$", t):
+        return True
+    m = re.match(r"^[\w.\-]+\.([A-Za-z0-9]+)$", t)
+    return bool(m and m.group(1).lower() in EXTENSIONS)
+
+
+def first_cells(src):
+    """Every first-cell inline token run: table rows and list items, from the AST."""
+    tokens = MD.parse(src)
+    out, depth, cell_index, capture = [], 0, 0, None
+    for i, tok in enumerate(tokens):
+        if tok.type == "tr_open":
+            cell_index = 0
+        elif tok.type in ("th_open", "td_open"):
+            cell_index += 1
+            capture = cell_index == 1
+        elif tok.type in ("th_close", "td_close"):
+            capture = None
+        elif tok.type == "list_item_open":
+            capture = True
+        elif tok.type == "inline" and capture:
+            out.append((tok.map[0] + 1 if tok.map else 0, tok))
+            capture = None
+    return out
+
+
+def cell_reference(tok):
+    """The filename a first cell names, if the cell IS that reference and not prose about it."""
+    kids = [c for c in (tok.children or []) if c.type != "text" or c.content.strip()]
+    if not kids:
         return None
-    for pattern in (BACKTICKED, LINKED):
-        m = pattern.match(cell)
-        if m and PATHLIKE.match(m.group(1)):
-            return m.group(1)
+    head = kids[0]
+    if head.type == "code_inline":
+        return head.content if names_a_file(head.content) else None
+    if head.type == "link_open":
+        href = dict(head.attrs).get("href", "")
+        label = "".join(c.content for c in kids[1:] if c.type == "text")
+        for candidate in (href, label):
+            if names_a_file(candidate):
+                return candidate
+    # A list item that begins with a bare filename, no backticks and no link.
+    if head.type == "text":
+        first = head.content.strip().split()[0] if head.content.strip() else ""
+        return first if names_a_file(first) else None
     return None
 
 
-def check(paths):
-    if not paths:
-        print("  FAIL nothing to check. A gate over no files certifies nothing.")
+def check(path):
+    src = pathlib.Path(path).read_text(encoding="utf-8", errors="ignore")
+    bad = []
+    for line, tok in first_cells(src):
+        ref = cell_reference(tok)
+        if ref:
+            bad.append((line, ref))
+    if bad:
+        print(f"  FAIL {path}: {len(bad)} index row(s). The directory is the index; delete these.")
+        for line, ref in bad[:5]:
+            print(f"        line {line}: {ref}")
         return 1
-    rc = 0
-    for path in paths:
-        if not path.exists():
-            print(f"  FAIL {path} does not exist")
-            rc = 1
-            continue
-        found = []
-        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            target = names_a_file(first_cell(line))
-            if target:
-                found.append((n, target, line.strip()[:70]))
-        if found:
-            for n, target, text in found:
-                print(f"  FAIL {path.name}:{n} indexes `{target}`: {text}")
-            print(f"       {len(found)} index row(s). The directory is the index; delete these.")
-            rc = 1
-        else:
-            print(f"  ok   {path.name}: no index rows")
-    return rc
-
-
-# --- controls -----------------------------------------------------------------------------
-#
-# The README passing proves the README is clean. It does not prove this would notice a row,
-# which is the only claim worth making. Three must fail and two must pass -- the passing
-# ones matter as much, because a gate that rejects prose about a filename is a gate people
-# route around.
+    print(f"  ok   {path}: no index rows")
+    return 0
 
 
 def self_test():
-    import contextlib
-    import io
-    import tempfile
-
-    tmp = pathlib.Path(tempfile.mkdtemp(prefix="readme-gate-"))
     cases = [
-        ("a table row naming a file", False,
-         "# Logbook\n\n| file | what it holds |\n| ---- | ------------- |\n"
-         "| `todo.md` | the running logbook |\n"),
-        ("a table row naming a directory", False,
-         "# Logbook\n\n| `scripts/` | the apparatus behind the entries |\n"),
-        ("a list item indexing a file", False,
-         "# Logbook\n\n- [todo.md](todo.md) - the running logbook\n"),
-        ("a row pointing at a file that is gone", False,
-         "# Logbook\n\n| `deleted-last-year.md` | nothing, any more |\n"),
-        # The two that must pass. A filename in a sentence is not an index, and neither is
-        # a table about something else that happens to mention one.
-        ("prose naming a file", True,
-         "# Logbook\n\nAn entry clips its apparatus, which is what `check_comment_density.py`\n"
-         "measures.\n"),
-        ("a measurements table mentioning a file", True,
-         "# Logbook\n\n| measurement | source |\n| ----------- | ------ |\n"
-         "| 3.7% median | `servers/` at 4.7.0-beta |\n"),
+        ("a table row naming a file", "| `todo.md` | the log |\n| --- | --- |\n", 1),
+        ("a list item linking a file", "- [todo.md](todo.md) - the log\n", 1),
+        ("a directory row", "| `scripts/` | the apparatus |\n| --- | --- |\n", 1),
+        # The false accusation that prompted the rewrite: an ANNY bone, not an R script.
+        ("a bone name is not a file", "| `foot.R` | 5.8 mm | 4 |\n| --- | --- | --- |\n", 0),
+        ("a version is not a file", "| `v1.0` | shipped |\n| --- | --- |\n", 0),
+        ("a filename in a later column is legal",
+         "| target | file |\n| --- | --- |\n| root | `plan.usda` |\n", 0),
+        ("prose naming a file is legal", "An entry records what `check_usd_valid.py` measures.\n", 0),
+        ("a measurement row is legal", "| `spine02` | 45.9 mm | 30 |\n| --- | --- | --- |\n", 0),
     ]
-
     print("controls:")
     bad = []
-    for i, (label, should_pass, text) in enumerate(cases):
-        # A distinct filename per case, so no case can be handed another's file.
-        dst = tmp / f"case{i}-README.md"
-        dst.write_text(text, encoding="utf-8")
-        buf = io.StringIO()
-        with contextlib.redirect_stdout(buf):
-            rc = check([dst])
-        first = next((ln.strip() for ln in buf.getvalue().splitlines() if "FAIL" in ln), "")
-        passed = rc == 0
-        if passed == should_pass:
-            mark, detail = "ok  ", "passes, correctly" if passed else f"fails: {first[:88]}"
-        else:
-            mark, detail = "BAD ", ("passed and should not have" if passed else
-                                    f"failed and should not have: {first[:70]}")
+    for label, src, want in cases:
+        got = len([1 for _, t in first_cells(src) if cell_reference(t)])
+        ok = got == want
+        print(f"  {'ok  ' if ok else 'BAD '} {label} (found {got}, wanted {want})")
+        if not ok:
             bad.append(label)
-        dst.unlink()
-        print(f"  {mark} {label}: {detail}")
-
     if bad:
-        print(f"\n{len(bad)} control(s) wrong. The gate is decoration until they are not.")
+        print(f"\n{len(bad)} control(s) failed.")
         return 1
     print(f"\nAll {len(cases)} controls behaved.")
     return 0
@@ -161,13 +156,12 @@ def self_test():
 
 def main(argv):
     args = [a for a in argv[1:] if not a.startswith("--")]
-    if "--self-test" in argv[1:] and not args:
-        return self_test()
-    rc = check([pathlib.Path(a) for a in args] or [DEFAULT])
     if "--self-test" in argv[1:]:
-        print()
-        rc |= self_test()
-    return rc
+        return self_test()
+    if not args:
+        print("usage: check_readme_no_index.py <file.md> [...] [--self-test]")
+        return 2
+    return max(check(a) for a in args)
 
 
 if __name__ == "__main__":
