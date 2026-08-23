@@ -79,6 +79,42 @@ converges on rotation-composition landscapes.
 So the twenty figures on the desktop are still the twenty-one-point layout. The 104-point sheet
 waits on the fit being redone against vertices.
 
+### Four routes, and a referee rather than an argument
+
+`AnnyInverter.__call__` takes `vertices_target`, and the clips give twenty-one joint positions
+and no mesh in ANNY's topology. `lbfgs_polish.py` works because its targets were already in that
+topology from an earlier retarget. Four ways across that gap are available, none obviously best,
+so all four get run and scored instead of one being argued for.
+
+1. **Joints to a provisional pose, then vertices.** Solve roughly from the twenty-one, take the
+   posed ANNY vertices as `vertices_target`, then inverter plus LBFGS. Cheapest, and circular
+   if the provisional solve is poor.
+2. **The clips' own skinned mesh.** The glb carry a character mesh whose posed vertices exist,
+   in the source topology, so this needs a correspondence to ANNY's. That is the same problem
+   T02 records for `coco.pth`, where the map was measured with `searchsorted` rather than
+   assumed, at a maximum positional difference of zero exactly.
+3. **Inverter for shape, LBFGS for pose.** Run the inverter once on the rest pose to settle
+   phenotypes, then LBFGS over pose only against the joint targets, starting from that solution.
+   Invents no correspondence and uses what the clips actually provide.
+4. **EditScore in the loop.** Generate several fits per pose — different seeds, different
+   regularisation weights — decode each from Hammersley viewpoints and keep the one the reward
+   model prefers. Best-of-N rather than a single solve, with the referee choosing.
+
+**How they are compared.** Joint residual in millimetres against the twenty-one targets, paired
+with a household object, which is the physical quantity. Then EditScore on the decoded views,
+which answers a different question: whether the recovered body reads as a body. A fit can put
+every constrained joint within a penny's thickness and still fold an elbow the wrong way,
+because eighty-three of the 104 are unconstrained, and the residual cannot see that. The spread
+of per-view scores is the third number, since a pose that scores well from one Hammersley
+viewpoint and badly from the next is inconsistent in 3D.
+
+**And against the image corpus.** `coco_person_commercial_train2017` holds 12,620 licence-clean
+photographs of people, the train split rather than the blinded val2017. Scoring renders only
+against each other measures agreement inside our own distribution. Sampling real photographs
+through the same instrument gives the scale those numbers sit on: if a fitted render scores
+below an ordinary photograph of a standing person, the gap is the thing to report, and it is not
+visible from renders alone.
+
 ## Where OmniGen2, EditScore and VoxHammer belong
 
 Recorded because the pipeline has more checkpoints available than it is using.
