@@ -69,27 +69,37 @@ transfer, a teacher's predictions. Permitted in a training corpus only when all 
 5. the generator runs at its published precision. **Quantised weights do not produce corpus
    data**, whatever they cost to run.
 
-Condition 5 is measured rather than cautious, and the measurement is what makes it a rule. The
-same OmniGen2 edit, same seed, same guidance, same instruction, run twice on one render:
+Condition 5 is a decision rather than a measurement, and the measurement first offered for it
+has been withdrawn. That is stated first because the earlier wording of this paragraph said the
+opposite, and it shipped.
 
-    precision   silhouette agreement with the render it was given
-    bf16        0.776 photographic, 0.833 sketch
-    NF4         0.328 photographic, 0.806 sketch
+**RETRACTED: the OmniGen2 bf16-versus-NF4 comparison was confounded.** It read that the same
+edit, same seed, same guidance, scored 0.776 silhouette agreement at bf16 and 0.328 at NF4, and
+concluded that four bits cost the pose. Those two runs did not differ only in precision. The
+bf16 one went through upstream's `inference.py`, which passes a quality-control negative prompt
+by default; the NF4 one went through our own script, which passed an empty string. Two variables
+moved and one was reported.
 
-At four bits the photographic prompt stopped editing and started generating — the body turned
-to face the camera where the input is a three-quarter view from behind. The pixels were clean,
-which is the trap: nothing about that frame looks broken, and every one of its 104 keypoints is
-wrong. Qwen-Image-Edit at NF4 fails more loudly on the same input, speckling every pixel.
+Holding the prompt fixed reverses it:
 
-The failure lands exactly where it cannot be tolerated. A label is true because the geometry it
-describes is the geometry in the picture, and a quantised generator drifts off the conditioning
-first and off the appearance second. So the cheap-looking saving buys frames whose labels are
-lies, and the verification pass then discards them, which is the expensive way to save nothing.
+    precision   negative prompt      photographic silhouette agreement
+    bf16        upstream's default   0.776
+    bf16        empty                0.305
+    NF4         empty                0.328
+    NF4         upstream's default   0.825
 
-**Quantisation for device qualification is a different activity and stays permitted.** Fitting
-OmniGen2 into 6.72 GiB to learn whether it clears the ASUS UGen300's 8 GB is a measurement
-about the device; its outputs are evidence about memory, not corpus data. The rule is about
-destination, the same way the OpenRAIL entry is.
+At four bits with the negative prompt the pose survives better than the figure originally cited
+for bf16. The prompt moved the result; precision did not measurably move it.
+
+**What survives is narrower than what was claimed.** Qwen-Image-Edit at NF4 speckles every
+pixel, reproduced with guidance on and off and with a clean input proven by another model. That
+is one model's failure -- and one already blocklisted on other grounds -- rather than a property
+of quantisation shown across models.
+
+The condition stays because it was decided, not derived: quantised generators do not produce
+corpus data here. Labelling it a decision is the honest form. A rule that cites a retracted
+measurement invites the next reader to re-derive it, reach the opposite answer, and quietly
+drop the rule; one that says "decided" gets revisited deliberately instead.
 
 The old blanket ban read "generative-model outputs never enter training corpora". It was too
 coarse: it forbade legitimate distillation while saying nothing about the actual hazard, which
@@ -523,6 +533,18 @@ Three explanations were eliminated rather than assumed, and each cost a run:
 8-bit would have isolated the quantiser and is not available here: int8 puts about 20 GB of
 weights on a 24 GB card, and the run reached step 3 of 30 at 4,925 s/it with 42 GB resident in
 host RAM — 37 hours projected for one image, against 3.3 s/it at NF4.
+
+**The corruption was measured under our settings, not upstream's, and is not being chased.**
+Both runs used 30 inference steps where upstream's examples use 50, and the guidance re-run
+passed an empty negative prompt -- the same empty string that turned out to be doing all the
+work in the OmniGen2 comparison retracted above. So "broken at NF4" should be read as broken
+under a configuration we chose, with at least two knobs untouched.
+
+Nothing about the block depends on that, which is why it is a qualification rather than a
+retraction. The model needs about 38 GB at bf16 against a 24 GB card, so on this desk it runs
+only in the mode that does not produce corpus data, and that is true whatever the step count
+says. The honest position is: blocked for a structural reason, plus a quality observation that
+was not run to ground.
 
 **Not blocked for hardware that can hold it.** A card with 48 GB or more runs the published
 bf16 path, which nothing here has tested and nothing here impugns. The entry says something
