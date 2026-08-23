@@ -33,6 +33,11 @@ ANNY bone in a residual table, as an index row -- and the author rewrote a perfe
 into prose to satisfy it rather than fixing the gate. A dot is not an extension. The extension
 must be one this workspace actually uses, or the name must carry a path separator.
 
+Third, a slash was treated as sufficient evidence of a path, so `head/neck` -- a body region
+in a residual table -- was read as a two-segment filename. That is the `foot.R` mistake with a
+different separator. A path now has to start at a side, the digit-prefixed top-level
+directories, or carry a known extension, or end in a separator.
+
 DETECTION FLOOR. An index row naming a file whose extension is absent from the list below reads
 as legal. That is a miss rather than a false alarm, and the fix is to add the extension when a
 new kind of file arrives, which is a visible edit rather than a silent drift.
@@ -64,7 +69,16 @@ def names_a_file(text):
     if t.endswith("/"):
         return True
     if "/" in t and re.match(r"^[\w.\-/]+$", t):
-        return True
+        # A SLASH IS NOT ENOUGH, and the first version thought it was. `head/neck` is one of
+        # this workspace's body regions and was read as a two-segment path, which flagged a
+        # residual table exactly as `foot.R` once did. A path here starts at a side -- the
+        # digit-prefixed top-level directories -- or carries an extension, or ends in a
+        # separator. A pair of ordinary words joined by a slash is none of those.
+        head = t.split("/")[0]
+        if re.match(r"^\d-[a-z][a-z_\-]*$", head):
+            return True
+        return bool(re.search(r"\.([A-Za-z0-9]+)$", t)
+                    and t.rsplit(".", 1)[1].lower() in EXTENSIONS)
     m = re.match(r"^[\w.\-]+\.([A-Za-z0-9]+)$", t)
     return bool(m and m.group(1).lower() in EXTENSIONS)
 
@@ -138,6 +152,13 @@ def self_test():
          "| target | file |\n| --- | --- |\n| root | `plan.usda` |\n", 0),
         ("prose naming a file is legal", "An entry records what `check_usd_valid.py` measures.\n", 0),
         ("a measurement row is legal", "| `spine02` | 45.9 mm | 30 |\n| --- | --- | --- |\n", 0),
+        # A slash alone made `head/neck` read as a path, which is the same false accusation
+        # `foot.R` produced one rewrite ago. A body region is not a directory.
+        ("a region name is not a path", "| head/neck | 15.77 mm | 10 |\n| --- | --- | --- |\n", 0),
+        ("a side-rooted path is still an index row",
+         "| `2-contract/logbook` | the log |\n| --- | --- |\n", 1),
+        ("a path with a known extension is still an index row",
+         "| `common/assets/bodytags_v3.json` | the tags |\n| --- | --- |\n", 1),
     ]
     print("controls:")
     bad = []
