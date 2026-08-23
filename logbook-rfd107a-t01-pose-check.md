@@ -71,13 +71,53 @@ determined by the rig. Knuckles follow the wrist, toes follow the foot.
 A first pass solved a rotation vector per bone plus a global translation and uniform scale,
 aligning centroids, and reached a mean residual near 50 mm with the worst near 110 mm — most of
 a soda can, when a same-rig fit has previously reached 1.7e-4 mm. Centroid alignment is not the
-procedure. ANNY's vertex fitting is, as `lbfgs_polish.py` in `anny-pose-retarget-work` performs
-it: AnnyInverter for the initial solution, then `torch.optim.LBFGS` with a strong-Wolfe line
-search over pose, phenotypes and local changes together. Adam alone has a fixed step and under
-converges on rotation-composition landscapes.
+procedure. `lbfgs_polish.py` in `anny-pose-retarget-work` shows the shape of one that is: an
+initial solution first, then `torch.optim.LBFGS` with a strong-Wolfe line search, because Adam
+alone has a fixed step and under-converges on rotation-composition landscapes. Its initial comes
+from AnnyInverter against target vertices, which the next section shows these clips cannot
+supply.
 
-So the twenty figures on the desktop are still the twenty-one-point layout. The 104-point sheet
-waits on the fit being redone against vertices.
+So the twenty figures on the desktop are still the twenty-one-point layout.
+
+### Route 2 is deleted by one measurement, and rung 0 has run
+
+`AnnyInverter.__call__` takes `vertices_target`, so the vertex route needs a mesh. The clips do
+not have one. `Aeroplane_BR.glb` reports `meshes: 0` with one skin, twenty-four nodes and one
+animation: these files are animation curves on a skeleton, and there is no geometry in them to
+correspond to ANNY's vertices. That deletes the highest-ceiling route rather than costing it,
+and the check was one command.
+
+Rung 0 ran in its place: a closed-form Umeyama similarity alignment of ANNY's rest joints onto
+the twenty-one targets as the initial, then LBFGS with a strong-Wolfe line search over per-bone
+rotations. Mean residual fell from thirty-three stacked pennies to sixteen. The worst stayed at
+about seventy-one pennies, one and a half soda cans, and it stayed there across every clip
+tested — 107.3, 107.9 and 108.0 mm on three different poses.
+
+That constancy is the finding. A residual that does not vary with the pose is not the optimiser
+failing to converge; it is a fixed disagreement between two skeletons. Per-target residuals name
+it precisely:
+
+The root bone carries 107.7 mm of it, seventy-one stacked pennies. The spine follows at
+45.9 mm and 43.2 mm, thirty and twenty-eight pennies, and the head at 37.6 mm, twenty-five. The
+right foot, by contrast, lands at 5.8 mm, under four pennies.
+
+`extract_poses.py` maps the source `Hips` onto ANNY's `root`, and they are different things:
+ANNY's `root` rests on the floor, at y = 0.000 m, while the clip puts its target between 0.948
+and 1.039 m — about fifteen soda cans up, which is pelvis height on a standing adult. The fit is asked to place a floor bone at hip height and pays
+for it in the whole spine above. The feet, which sit where ANNY expects feet, land within four
+pennies. `spine05` also rests at y = 0.000 m, so two of the twenty-one targets are pinned to one
+place while the clip separates them by a hand's width.
+
+This is T02's territory rather than T01's. The plan already records that the `coco.pth` weight
+map was measured with `searchsorted` rather than assumed, at a maximum positional difference of
+zero exactly. BONE_MAP has had no such treatment: it is a name-level mapping, which is the
+failure `extract_poses.py`'s own docstring warns about — three times in one session a name-level
+map looked right and was wrong.
+
+So rungs 1 and 4 stay unjustified for now. Feeding a mis-mapped fit's vertices to the inverter
+anchors on the error, and asking EditScore to choose between candidates that share a wrong hip
+spends GPU time on a comparison whose outcome is already determined. The next spend is measuring
+the correspondence.
 
 ### Four routes, and a referee rather than an argument
 
