@@ -69,11 +69,11 @@ def names_a_file(text):
     if t.endswith("/"):
         return True
     if "/" in t and re.match(r"^[\w.\-/]+$", t):
-        # A SLASH IS NOT ENOUGH, and the first version thought it was. `head/neck` is one of
-        # this workspace's body regions and was read as a two-segment path, which flagged a
-        # residual table exactly as `foot.R` once did. A path here starts at a side -- the
-        # digit-prefixed top-level directories -- or carries an extension, or ends in a
-        # separator. A pair of ordinary words joined by a slash is none of those.
+        # `head/neck` is one of this workspace's body regions, and the first version of this
+        # branch read it as a two-segment path, flagging a residual table exactly as `foot.R`
+        # once did. What identifies a path here is where it starts or how it ends: a side, the
+        # digit-prefixed top-level directories, or a known extension, or a trailing separator.
+        # Two ordinary words joined by a slash have none of those.
         head = t.split("/")[0]
         if re.match(r"^\d-[a-z][a-z_\-]*$", head):
             return True
@@ -152,8 +152,8 @@ def self_test():
          "| target | file |\n| --- | --- |\n| root | `plan.usda` |\n", 0),
         ("prose naming a file is legal", "An entry records what `check_usd_valid.py` measures.\n", 0),
         ("a measurement row is legal", "| `spine02` | 45.9 mm | 30 |\n| --- | --- | --- |\n", 0),
-        # A slash alone made `head/neck` read as a path, which is the same false accusation
-        # `foot.R` produced one rewrite ago. A body region is not a directory.
+        # `head/neck` names a region of the body, and the earlier pattern read its slash as a
+        # path separator -- the same false accusation `foot.R` produced one rewrite ago.
         ("a region name is not a path", "| head/neck | 15.77 mm | 10 |\n| --- | --- | --- |\n", 0),
         ("a side-rooted path is still an index row",
          "| `2-contract/logbook` | the log |\n| --- | --- |\n", 1),
