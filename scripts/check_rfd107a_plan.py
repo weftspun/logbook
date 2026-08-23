@@ -237,6 +237,12 @@ def check(path):
             if missing:
                 failures.append("not found in the source documents: " + ", ".join(missing))
             else:
+                # WHAT THIS CATCHES, AND WHAT IT DOES NOT. It is a presence test: the number
+                # must appear somewhere in the three documents. It cannot tell that the number
+                # appears *as this quantity* rather than in an unrelated sentence, so its power
+                # falls as those documents grow -- a drifted value that happens to collide with
+                # any other figure in them passes. Binding each quantity to its own phrase would
+                # fix that and is not done here; the limit is recorded rather than implied.
                 print(f"  ok   {len(attrs)} quantities, every one present in the source documents")
 
     if failures:
@@ -275,8 +281,24 @@ def self_test(path):
         rel.SetTargets([f"{PLAN}/T99_DoesNotExist"])
 
     def _drift_a_count(stage):
-        """Change one quantity. The RFD then says something the plan does not."""
-        stage.GetPrimAtPath(QUANTITIES).GetAttribute("sharedKeypoints").Set(15)
+        """Change one quantity. The RFD then says something the plan does not.
+
+        THE VALUE IS CHOSEN AT RUN TIME, AND THE REASON IS A REAL LIMIT OF THE CHECK ABOVE.
+        This control used to set 15, and it stopped firing: the quantity test asks whether a
+        number appears anywhere in the source documents, and CLAUDE.md grew a sentence about a
+        model dropping "15 mtp tensors". A coincidence in unrelated prose silently turned the
+        control green, which is the failure mode negative controls exist to expose -- and it
+        was the control that caught it, not the check.
+
+        So the mutation now searches for an integer that appears in none of the sources, which
+        keeps the control honest as those documents keep growing.
+        """
+        text, err = rfd_text()
+        assert not err, err
+        n = 15
+        while re.search(rf"(?<![\d.]){n}(?![\d.])", text):
+            n += 1
+        stage.GetPrimAtPath(QUANTITIES).GetAttribute("sharedKeypoints").Set(n)
 
     def _drop_a_measurement(stage):
         """Remove what a step will report, leaving an intention."""
