@@ -534,6 +534,18 @@ Three explanations were eliminated rather than assumed, and each cost a run:
 weights on a 24 GB card, and the run reached step 3 of 30 at 4,925 s/it with 42 GB resident in
 host RAM — 37 hours projected for one image, against 3.3 s/it at NF4.
 
+**The corruption was measured under our settings, not upstream's, and is not being chased.**
+Both runs used 30 inference steps where upstream's examples use 50, and the guidance re-run
+passed an empty negative prompt -- the same empty string that turned out to be doing all the
+work in the OmniGen2 comparison retracted above. So "broken at NF4" should be read as broken
+under a configuration we chose, with at least two knobs untouched.
+
+Nothing about the block depends on that, which is why it is a qualification rather than a
+retraction. The model needs about 38 GB at bf16 against a 24 GB card, so on this desk it runs
+only in the mode that does not produce corpus data, and that is true whatever the step count
+says. The honest position is: blocked for a structural reason, plus a quality observation that
+was not run to ground.
+
 **Not blocked for hardware that can hold it.** A card with 48 GB or more runs the published
 bf16 path, which nothing here has tested and nothing here impugns. The entry says something
 narrower: on this desk the only runnable mode is the one condition 5 forbids, and it is broken
