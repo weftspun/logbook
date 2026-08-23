@@ -242,6 +242,7 @@ Sources excluded from corpora, with the reason:
 | **P3-SAM / Hunyuan3D-Part**                        | territory-restricted licence: excludes EU, UK and South Korea — see below                                                           |
 | **Krea 2 / krea2-turbo**                           | revenue-gated licence, and the planned deployment was Q4 — see below                                                                |
 | **BRIA RMBG**                                      | gated and non-commercial — see below                                                                                                |
+| **abliterated weights**                            | refusal removal by weight edit, unmeasured elsewhere — see below                                                                    |
 | `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
 | **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
 | **`uv` for project environments**                  | an environment nothing declares and nobody can rebuild — use `pixi`, see below                                                      |
@@ -249,6 +250,46 @@ Sources excluded from corpora, with the reason:
 
 The cosplay photo library may be used for **validation only**, never
 training.
+
+### Abliteration is blocked, and the model's own card is the argument
+
+`huihui-ai/Huihui-Qwen3.5-9B-abliterated` is the named instance and the technique is what is
+blocked. It came up as a base for an EditScore reward model, because a grader that refuses to
+look at an unclothed figure render scores it low for the wrong reason, and our renders are
+unclothed bodies.
+
+The card says what was done, in its own words:
+
+> This is a crude, proof-of-concept implementation to remove refusals from an LLM model without
+> using TransformerLens.
+
+A refusal direction is found and subtracted from the weights. What that subtraction does to
+everything else is not measured, and for a **reward model** that is the whole problem: the
+artefact's job is to be a reliable judge, and it has been edited in a way nobody characterised.
+A generator that drifts produces a picture somebody looks at. A judge that drifts silently
+relabels a corpus.
+
+Tensor parity is not evidence of behavioural parity, and it was tempting to treat it as such:
+the abliterated model keeps all 775 tensors against the base's 775, where the Heretic-tool
+build drops the 15 `mtp.*` ones. Same shapes, edited values.
+
+**Heretic is permitted, and the line is measurement rather than technique.** Heretic is
+automated abliteration — the same directional ablation with a parameter search over it — so a
+technique-shaped rule would catch both, and this one does not. What is blocked is a _crude,
+unmeasured_ edit, of the kind its own author calls a proof of concept. A search that optimises
+against a stated objective has an argument behind each weight it moves; a hand-subtracted
+direction has none.
+
+That distinction is doing real work rather than splitting hairs, and it can be checked: an
+abliterated model comes with no statement of what its edit cost, and a Heretic build comes with
+the objective it was optimised against. If a future candidate offers neither, it is the crude
+case whatever it is called.
+
+**What to do instead, and it is cheaper than either.** Nobody has measured that the stock model
+refuses. Scoring an edit is a grading task, not a generation task, and the refusal behaviour
+that abliteration targets is tuned against requests to _produce_ content. `Qwen/Qwen3.5-9B` is
+Apache-2.0 and ungated: run it on the frames in question and count refusals. An edit removing a
+behaviour nobody has observed is a change with no measurement behind it.
 
 ### `rf-detr-keypoint-data` is the holdout, not a training set
 
