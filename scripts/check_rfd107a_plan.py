@@ -159,8 +159,67 @@ def check(path):
                 )
     print(f"  ok   {len(tasks)} tasks, orders 1..{len(tasks)}, every edge resolves and points back")
 
-    # The counts, against the document rather than against memory.
     text, err = rfd_text()
+
+    # THE CRITICAL PATH, AGAINST THE GRAPH RATHER THAN AGAINST THE SENTENCE THAT STATES IT.
+    #
+    # DETAILS.md now says how deep the plan is and how many tasks are critical. Those are
+    # derived facts, so they are read off the stage here and compared, rather than trusted:
+    # a later edge that changes the slack has to change the prose or fail this.
+    #
+    # Unit durations, because the stage carries no estimates. That is the assumption the
+    # document states, and this gate holds it to the same one.
+    deps = {t.GetName(): [d.name for d in t.GetRelationship("dependsOn").GetTargets()] for t in tasks}
+    rank = {t.GetName(): t.GetAttribute("order").Get() for t in tasks}
+
+    # WALK THE ORDER RATHER THAN RECURSING, AND SAY SO WHEN IT CANNOT BE WALKED.
+    #
+    # The first version of this block recursed over `dependsOn`, and the backward-edge control
+    # turned that into a cycle and a RecursionError -- the gate crashed instead of reporting,
+    # which is worse than a false pass because the traceback buries the real finding. The
+    # numbering is already checked to be topological above, so ascending `order` is a safe
+    # walk. A cycle is a FAIL here, not a skipped section: an unmet precondition reads exactly
+    # like a pass otherwise.
+    backward = [n for n, ds in deps.items()
+                if any(rank.get(d) is None or rank[d] >= rank[n] for d in ds)]
+    if backward:
+        failures.append(
+            "critical path not computed: " + ", ".join(sorted(backward))
+            + " depend on tasks at or after their own order, so the graph is not a walkable order"
+        )
+    else:
+        by_rank = sorted(deps, key=lambda n: rank[n])
+        es = {}
+        for n in by_rank:
+            es[n] = max([es[d] + 1 for d in deps[n]], default=0)
+        depth = max(es.values()) + 1
+        succ = {n: [m for m, ds in deps.items() if n in ds] for n in deps}
+        lf = {}
+        for n in reversed(by_rank):
+            lf[n] = min([lf[s] - 1 for s in succ[n]], default=depth)
+        floating = [n for n in deps if (lf[n] - 1) - es[n] > 0]
+        critical = len(deps) - len(floating)
+
+        if not err:
+            want = [
+                "six layers deep" if depth == 6 else f"{depth} layers deep",
+                "nine of the ten tasks are critical" if (critical, len(deps)) == (9, 10)
+                else f"{critical} of the {len(deps)} tasks are critical",
+            ]
+            missing = [c for c in want if c not in text]
+            if missing:
+                failures.append(
+                    "DETAILS.md does not state what the graph computes: " + "; ".join(missing)
+                )
+            elif len(floating) != 1:
+                failures.append(
+                    f"the graph gives {len(floating)} tasks with slack; DETAILS.md says one"
+                )
+            else:
+                print(f"  ok   critical path: {depth} layers, {critical} of {len(deps)} "
+                      f"critical, slack only on {floating[0]}")
+
+    # The counts, against the document rather than against memory.
     if err:
         failures.append(err)
     else:
@@ -227,12 +286,22 @@ def self_test(path):
         """A state outside the vocabulary, which is how a fifth one arrives unannounced."""
         stage.GetPrimAtPath(f"{PLAN}/T05_StrengthWindow").GetAttribute("state").Set("done")
 
+    def _slack_vanishes(stage):
+        """Make the schema step feed the loop, which removes the only float in the plan.
+
+        DETAILS.md says one task has slack. Add this edge and none does, so the sentence is
+        wrong while every existing check still passes -- which is exactly the drift the
+        critical-path block above exists to catch."""
+        rel = stage.GetPrimAtPath(f"{PLAN}/T07_VerificationLoop").GetRelationship("dependsOn")
+        rel.SetTargets(list(rel.GetTargets()) + [f"{PLAN}/T06_SchemaCompletion"])
+
     controls = [
         ("a task depends on a later task", _backward_edge),
         ("a dependency points at nothing", _dangling_edge),
         ("a count drifts from the RFD", _drift_a_count),
         ("a task states no measurement", _drop_a_measurement),
         ("a state outside the vocabulary", _unknown_state),
+        ("the last slack in the plan disappears", _slack_vanishes),
     ]
 
     print("negative controls (each must FAIL):")
