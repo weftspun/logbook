@@ -91,6 +91,11 @@ SOURCES = (RFD_DIR / "README.md", RFD_DIR / "DETAILS.md", REPO / "CLAUDE.md")
 PLAN = "/Rfd107a/Plan"
 QUANTITIES = "/Rfd107a/Quantities"
 STATES = ("gate", "build", "measure", "exists")
+SHAPE = "/Rfd107a/TrainingShape"
+FINDINGS = "/Rfd107a/Findings"
+# The training shape's closed vocabulary. A sixth kind arrives the same way a fifth
+# state would -- unannounced -- so it is enumerated here rather than inferred.
+SHAPE_KINDS = ("space", "head", "loss")
 
 
 def rfd_text():
@@ -158,6 +163,68 @@ def check(path):
                     f"order {theirs}. The numbering disagrees with the graph."
                 )
     print(f"  ok   {len(tasks)} tasks, orders 1..{len(tasks)}, every edge resolves and points back")
+
+    # THE BRAKE ON THE TRAINING SHAPE.
+    #
+    # Every component must name the finding that motivated it, and that finding must exist.
+    # This is the whole mechanism: a finding records a measurement rather than an intention
+    # (the logbook rule), so a head, tier or loss cannot enter the shape on the strength of a
+    # conversation. It has to be preceded by something somebody measured.
+    #
+    # Written because the shape expanded five times in one session and nothing was counting.
+    # It cannot stop a bad measurement; it stops expansion with none at all.
+    shape = stage.GetPrimAtPath(SHAPE)
+    if not shape:
+        # An absent scope is a FAIL rather than a skip: a silent skip reads exactly like a
+        # pass, and this check going quiet is how the brake would come off unnoticed.
+        failures.append(f"no training shape at {SHAPE}: the brake cannot be checked")
+    else:
+        components = list(shape.GetChildren())
+        if not components:
+            failures.append("the training shape declares no components")
+        for c in components:
+            kind = c.GetAttribute("kind").Get()
+            if kind not in SHAPE_KINDS:
+                failures.append(
+                    f"{c.GetName()}: kind {kind!r} is outside {SHAPE_KINDS}")
+            targets = c.GetRelationship("justifiedBy").GetTargets()
+            if not targets:
+                failures.append(
+                    f"{c.GetName()}: no justifiedBy. A component of the training shape "
+                    "needs a finding behind it, which needs a measurement behind it.")
+            for target in targets:
+                if not str(target).startswith(FINDINGS + "/"):
+                    failures.append(
+                        f"{c.GetName()}: justifiedBy {target} is not a finding")
+                elif not stage.GetPrimAtPath(target):
+                    failures.append(
+                        f"{c.GetName()}: justifiedBy {target} which does not resolve")
+        # ONE FINDING, ONE COMPONENT.
+        #
+        # `justifiedBy` resolving is not enough, and L04 is why: a consistency term was
+        # added citing F10, which measures the body/scene split and says nothing about a
+        # consistency term. The citation resolved, so the check passed, and the component
+        # was riding a finding it had borrowed.
+        #
+        # A finding is one measurement. If it is backing two components, at least one of
+        # them is stretched over evidence that was not gathered for it. This is the cheapest
+        # mechanical proxy for relevance there is -- it does not read the finding, it just
+        # refuses to let one be spent twice.
+        backing = {}
+        for c in components:
+            for target in c.GetRelationship("justifiedBy").GetTargets():
+                backing.setdefault(str(target), []).append(c.GetName())
+        for target, users in sorted(backing.items()):
+            if len(users) > 1:
+                failures.append(
+                    f"{target.rsplit('/', 1)[-1]} justifies {len(users)} components "
+                    f"({', '.join(sorted(users))}). One finding is one measurement; at "
+                    "least one of these is borrowing it.")
+
+        if not [f for f in failures if "training shape" in f or "justifiedBy" in f
+                or "kind" in f or "borrowing it" in f]:
+            print(f"  ok   training shape: {len(components)} components, every one "
+                  f"justified by a finding that exists")
 
     text, err = rfd_text()
 
@@ -317,7 +384,30 @@ def self_test(path):
         rel = stage.GetPrimAtPath(f"{PLAN}/T07_VerificationLoop").GetRelationship("dependsOn")
         rel.SetTargets(list(rel.GetTargets()) + [f"{PLAN}/T06_SchemaCompletion"])
 
+    def _unjustified_component(stage):
+        """Add a component to the training shape with nothing behind it.
+
+        This is the expansion this brake exists to catch: a new loss term that sounded
+        right in conversation, pointing at a finding nobody wrote."""
+        from pxr import Usd, Sdf
+        prim = stage.DefinePrim(f"{SHAPE}/L99_SomethingWeAgreedTo", "")
+        prim.CreateAttribute("kind", Sdf.ValueTypeNames.Token,
+                             custom=True, variability=Sdf.VariabilityUniform).Set("loss")
+        prim.CreateRelationship("justifiedBy").SetTargets(
+            [f"{FINDINGS}/F99_AFindingNobodyWrote"])
+
+    def _borrowed_finding(stage):
+        """Point a second component at a finding that already backs another one.
+
+        This is the defect that got through the first version of the brake: the citation
+        resolves, so a resolve-only check passes, and the component is justified by evidence
+        gathered for something else."""
+        rel = stage.GetPrimAtPath(f"{SHAPE}/L03_HeadsAreParallelOnOneQuery").GetRelationship("justifiedBy")
+        rel.SetTargets([f"{FINDINGS}/F10_BodyAndSceneAreTwoLatents"])
+
     controls = [
+        ("a component with no finding behind it", _unjustified_component),
+        ("two components share one finding", _borrowed_finding),
         ("a task depends on a later task", _backward_edge),
         ("a dependency points at nothing", _dangling_edge),
         ("a count drifts from the RFD", _drift_a_count),
