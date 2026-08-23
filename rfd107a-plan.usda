@@ -175,7 +175,8 @@ would be learning a different meaning of the word than the labels it is scored a
 This lands on the int8 attribute T06 is meant to settle, so the three states want defining
 against COCO's convention rather than inheriting whatever the z-test returns.
 
-MEASURED, AND THE NUMBERS SAY WRONG RATHER THAN UNSETTLED. At TOL = 0.02 m the rest pose
+MEASURED, AND THE NUMBERS SAY WRONG RATHER THAN UNSETTLED. At TOL = 0.02 m, about
+thirteen stacked pennies, the rest pose
 reports 14 of 104 joints unoccluded from the front, 42 from three-quarter and 53 from the
 side. Fewest visible from the front is backwards -- the front is where a viewer sees most of a
 body. What the test measures is how deep a joint centre sits beneath the surface along the view
@@ -292,6 +293,22 @@ Separately, `dataset-100style-mocap` holds `base.zip` and `labelled.zip`, which 
 archive-format rule forbids: recompress to `.zst` and verify payload hashes before deleting the
 originals.
 
+RAN 2026-08-23, AND THE PICTURE MATCHES THE PREDICTION. Twenty clips, every fortieth of the
+810 by name, middle frame of five, 2,100 joint positions. All twenty are upright figures mid
+stride: the hundred styles vary the gait -- Penguin, Monk, Tiptoe, DuckFoot -- and never the
+configuration of the body. Nothing sits, crouches, leans or reaches. How many an artist would
+draw is a human judgement and is not recorded here.
+
+TWO THINGS THE RUN GOT WRONG, both corrected in `logbook-rfd107a-t01-pose-check.md`. The camera
+was picked by hand before `sphere_hammersley_sequence` was used, and a front view flattens the
+stride, which runs about five stacked soda cans along the travel axis against three and a half
+across it. And the sheet drew the twenty-one source bones, which is the old layout: those are
+targets, and the 104 come from fitting ANNY to them.
+
+STILL OWED: the fit itself, by ANNY's vertex-fitting procedure rather than the centroid
+alignment first attempted, which missed by about a soda can's width where a same-rig fit has
+reached a thousandth of a penny's thickness.
+
 None of this blocks projecting twenty poses and looking at them."""
         )
         {
@@ -406,7 +423,25 @@ because the bake reads MakeHuman's own material and writes a flat texture set, a
 half carries anything that cannot be shown.
 
 The placement is not recorded here yet, and this attribute is the reminder rather than
-the record. An unplaced project is the drift the six words exist to stop."""
+the record. An unplaced project is the drift the six words exist to stop.
+
+THE METHOD EXISTS NOW, AND IT IS MITSUBA 3. This task was specified as a Blender bake, and
+Blender is blocklisted for reproducibility, which left the step without a renderer and its
+duration unknown -- the reason the critical-path table names it as the branch with no estimate.
+The corpus repository has since built the replacement the blocklist entry asked for.
+
+What the entry demanded of any candidate was that it install from a lockfile, render the same
+bytes twice on two machines, and ship the check for that. `mitsuba = "==3.9.1"` is pinned in
+`anny-render-corpus`'s pixi.toml, and the determinism is measured rather than asserted:
+llvm_ad_rgb at one thread is byte-identical over two runs by sha256, while the default thread
+count drifts by up to 1/255 on a handful of pixels through film accumulation order. Fixing the
+thread count is therefore part of the method, not a detail.
+
+`render_view.py` already writes RGBA with alpha from the depth AOV and runs as a pixi task, so
+the apparatus for a bake pass is the same apparatus, pointed at the hm08 UV layout: albedo,
+roughness and normal, with metallic a constant zero.
+
+This does not make the task done. What it removes is the reason it had no estimate."""
         )
         {
             custom int order = 3
@@ -558,7 +593,21 @@ exist is the loop that runs them per frame and drops what fails. Hand quality is
 here too, by the finger-chain gate, before any volume run — the reason
 `alfredplpl/anime-with-caption-cc0` images are blocked is malformed hands, and generating a
 replacement with a model that malforms them differently is the same defect with our
-provenance on it."""
+provenance on it.
+
+THE VERIFIER CAN STAND EARLIER THAN THIS STEP. EditScore reads two images and an instruction and
+returns a number, so it scores any stage that produces a frame rather than only a finished
+restyle: stock Qwen3-VL-8B with its adapter refused none of twelve unclothed figure renders, and
+runs in 6.75 GiB at 512 pixels square, inside the ASUS UGen300's 8 GB.
+
+A LATENT CAN BE SCORED BY DECODING IT. A SLAT or mesh latent decoded to images from Hammersley
+viewpoints gives a score per view, and the disagreement between views is a 3D-consistency signal
+that no single view provides: one frame cannot separate an edit that is good from an edit that
+is good only from that angle. The cameras are already deterministic from an index.
+
+AND A REJECTED FRAME NEED NOT BE DISCARDED. VoxHammer edits the latent directly, so a frame this
+loop rejects can be corrected in 3D and re-decoded, with the same instrument scoring the result.
+That makes the discard rule this task states a floor rather than the only option."""
         )
         {
             custom int order = 7
