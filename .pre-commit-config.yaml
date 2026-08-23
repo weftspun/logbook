@@ -28,10 +28,17 @@ repos:
       # that, which is the same shape as every other second-place-a-fact-lives rule here.
       # The provocation was an agent adding two rows for files it had just written: accurate
       # that afternoon, unpoliced afterwards. This gate would have rejected them.
+      #
+      # `markdown-it-py` is declared because the gate parses the CommonMark token stream
+      # rather than matching pipes at the start of a line. The first version did the latter
+      # and read `foot.R`, an ANNY bone in a residual table, as a filename. A hook whose
+      # dependency is undeclared fails in CI with a ModuleNotFoundError, which is how this
+      # line came to be written.
       - id: readme-no-index
         name: README.md indexes no files -- the directory is the index
         entry: python scripts/check_readme_no_index.py
         language: python
+        additional_dependencies: ["markdown-it-py==3.0.0"]
         files: ^README\.md$
         pass_filenames: true
 

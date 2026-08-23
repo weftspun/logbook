@@ -97,9 +97,15 @@ That constancy is the finding. A residual that does not vary with the pose is no
 failing to converge; it is a fixed disagreement between two skeletons. Per-target residuals name
 it precisely:
 
-The root bone carries 107.7 mm of it, seventy-one stacked pennies. The spine follows at
-45.9 mm and 43.2 mm, thirty and twenty-eight pennies, and the head at 37.6 mm, twenty-five. The
-right foot, by contrast, lands at 5.8 mm, under four pennies.
+Per-target residuals name it, in millimetres and in stacked pennies:
+
+| target    | residual | pennies |
+| --------- | -------- | ------- |
+| `root`    | 107.7 mm | 71      |
+| `spine02` | 45.9 mm  | 30      |
+| `spine03` | 43.2 mm  | 28      |
+| `head`    | 37.6 mm  | 25      |
+| `foot.R`  | 5.8 mm   | 4       |
 
 `extract_poses.py` maps the source `Hips` onto ANNY's `root`, and they are different things:
 ANNY's `root` rests on the floor, at y = 0.000 m, while the clip puts its target between 0.948
