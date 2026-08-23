@@ -242,6 +242,7 @@ Sources excluded from corpora, with the reason:
 | **P3-SAM / Hunyuan3D-Part**                        | territory-restricted licence: excludes EU, UK and South Korea — see below                                                           |
 | **Krea 2 / krea2-turbo**                           | revenue-gated licence, and the planned deployment was Q4 — see below                                                                |
 | **BRIA RMBG**                                      | gated and non-commercial — see below                                                                                                |
+| **abliterated weights**                            | refusal removal by weight edit, unmeasured elsewhere — see below                                                                    |
 | `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
 | **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
 | **`uv` for project environments**                  | an environment nothing declares and nobody can rebuild — use `pixi`, see below                                                      |
@@ -249,6 +250,63 @@ Sources excluded from corpora, with the reason:
 
 The cosplay photo library may be used for **validation only**, never
 training.
+
+### Abliteration is blocked, and the model's own card is the argument
+
+`huihui-ai/Huihui-Qwen3.5-9B-abliterated` is the named instance and the technique is what is
+blocked. It came up as a base for an EditScore reward model, because a grader that refuses to
+look at an unclothed figure render scores it low for the wrong reason, and our renders are
+unclothed bodies.
+
+The card says what was done, in its own words:
+
+> This is a crude, proof-of-concept implementation to remove refusals from an LLM model without
+> using TransformerLens.
+
+A refusal direction is found and subtracted from the weights. What that subtraction does to
+everything else is not measured, and for a **reward model** that is the whole problem: the
+artefact's job is to be a reliable judge, and it has been edited in a way nobody characterised.
+A generator that drifts produces a picture somebody looks at. A judge that drifts silently
+relabels a corpus.
+
+Tensor parity is not evidence of behavioural parity, and it was tempting to treat it as such:
+the abliterated model keeps all 775 tensors against the base's 775, where the Heretic-tool
+build drops the 15 `mtp.*` ones. Same shapes, edited values.
+
+**Heretic is permitted, and the line is measurement rather than technique.** Heretic is
+automated abliteration — the same directional ablation with a parameter search over it — so a
+technique-shaped rule would catch both, and this one does not. What is blocked is a _crude,
+unmeasured_ edit, of the kind its own author calls a proof of concept. A search that optimises
+against a stated objective has an argument behind each weight it moves; a hand-subtracted
+direction has none.
+
+That distinction is doing real work rather than splitting hairs, and it can be checked: an
+abliterated model comes with no statement of what its edit cost, and a Heretic build comes with
+the objective it was optimised against. If a future candidate offers neither, it is the crude
+case whatever it is called.
+
+**MEASURED: THE STOCK MODEL DOES NOT REFUSE, SO THE PREMISE WAS FALSE.** This section first
+said the count was one run away. It has been run. `Qwen/Qwen3-VL-8B-Instruct` with the stock
+`EditScore/EditScore-Qwen3-VL-8B-Instruct` adapter, no uncensoring of any kind, was asked to
+grade twelve restyles of an unclothed ANNY render:
+
+    1024x1024 inputs   0 refusals of 12
+    512x512 inputs     0 refusals of 12
+
+Every frame came back with a number. A refusal here would be a non-answer rather than a low
+score, and there were none of either kind — the low scores it did return are judgements about
+edits that ignored their instruction, which is the model working.
+
+So the reason for reaching for an edited base did not exist. Nobody had checked, and the check
+cost one run against images we already had. That is the whole entry: refusal tuning targets
+requests to _produce_ content, grading is not producing, and an unmeasured assumption sent us
+looking for weights that somebody had modified in ways nobody characterised.
+
+The sizing came free with it, and it is the useful half now. At NF4 the weights are 6.29 GiB
+and the peak is 8.60 GiB on 1024x1024 inputs — over the ASUS UGen300's 8 GB — but 6.75 GiB at
+512x512, which is `image_max_pixels` in EditScore's own training config. The vision tokens were
+the budget, not the weights, and feeding the model four times the pixels it was trained on was
+our error rather than the device's limit.
 
 ### `rf-detr-keypoint-data` is the holdout, not a training set
 
