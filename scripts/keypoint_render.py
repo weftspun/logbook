@@ -245,7 +245,8 @@ def write_lottie(path, views, cols, labels, parents, fps=2):
         A PNG channel is 8 bits and depth is a 32-bit float, so the float is split across RGBA
         rather than scaled into a range. That is lossless by construction and measured to be:
         decoded back the array is bit-identical, and flipping one bit makes the check fail.
-        Scaling into 16-bit grey would have quantised 0.813 m at 0.012 mm a step, and thrown
+        Scaling into 16-bit grey would have quantised the 0.813 m depth span -- twelve
+soda cans end to end -- at 0.012 mm a step, and thrown
         away the exactness for a smaller file.
         """
         bits = depth.astype(np.float32).view(np.uint32)
@@ -380,7 +381,11 @@ def write_lottie(path, views, cols, labels, parents, fps=2):
     return n_layers, worst, png_bytes
 
 
-# 20 mm, about thirteen stacked credit cards. THIS NUMBER IS NOT SETTLED: joint centres sit
+# 20 mm, about thirteen stacked pennies. CORRECTED: this read "thirteen stacked credit
+# cards" until a gate for unpaired measurements went looking. A credit card is 0.76 mm,
+# so thirteen of them is 10 mm and twenty needs twenty-six; a penny is 1.52 mm and
+# thirteen of those is 19.8 mm. The anchor was wrong by a factor of two, in the direction
+# that made the tolerance sound tighter than it is. THIS NUMBER IS NOT SETTLED: joint centres sit
 # inside the body, so a strict test calls every joint occluded and a loose one passes every
 # joint. It decides a supervised label, so it needs deciding on its own terms.
 #
@@ -461,7 +466,8 @@ for tag, az in (("front", 0.0), ("three-quarter", 40.0), ("side", 90.0)):
 nlay, lottie_err, dbytes = write_lottie(os.path.join(OUT, "anny-keypoints-multiview.json"),
                                 VIEWS, COLS, labels, parents)
 # A pixel is not a physical quantity, so the error is reported in both. At FOV 40 degrees and
-# the ~2.99 m the body sits at, 1024 px spans 2.18 m, which is 2.13 mm a pixel.
+# the ~2.99 m the body sits at -- about forty-five soda cans -- 1024 px spans 2.18 m,
+# which is 2.13 mm a pixel, close to three stacked credit cards.
 _MM_PER_PX = 2 * 2.99 * math.tan(math.radians(FOV / 2)) * 1000 / W
 print("lottie: %d views, %d layers, worst coordinate error %.2e px = %.0f nm at the body "
       "(one seven-thousandth of a credit card's thickness), %.1f MB of embedded depth, "

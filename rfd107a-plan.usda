@@ -175,7 +175,8 @@ would be learning a different meaning of the word than the labels it is scored a
 This lands on the int8 attribute T06 is meant to settle, so the three states want defining
 against COCO's convention rather than inheriting whatever the z-test returns.
 
-MEASURED, AND THE NUMBERS SAY WRONG RATHER THAN UNSETTLED. At TOL = 0.02 m the rest pose
+MEASURED, AND THE NUMBERS SAY WRONG RATHER THAN UNSETTLED. At TOL = 0.02 m, about
+thirteen stacked pennies, the rest pose
 reports 14 of 104 joints unoccluded from the front, 42 from three-quarter and 53 from the
 side. Fewest visible from the front is backwards -- the front is where a viewer sees most of a
 body. What the test measures is how deep a joint centre sits beneath the surface along the view
