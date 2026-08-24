@@ -14,6 +14,14 @@ believed, which is the whole reason an entry clips its apparatus.
 | `samples.py`         | soft-renderer-and-mitsuba | ANNY depth and silhouette renders, written to disk for inspection |
 | `keypoint_render.py` | soft-renderer-and-mitsuba | 104 keypoints coloured by See-Through layer in OKHSL              |
 
-These import from `3-interactor/pose-consensus/python` and expect `anny` installed. They were
-run against a local 4090 and name that in their output, because a timing without the machine
-is not a measurement.
+These import from `3-interactor/pose-consensus/python` and expect `anny` installed.
+
+A timing without the machine is not a measurement, and the desks do not agree: at least a 3090
+and a 4090 are in use, 24 GB each and not the same throughput. So this file names no GPU, and
+a timing that reaches an entry has to carry the machine it was measured on rather than inherit
+one from here.
+
+**The scripts do not all do that yet.** Only `samples.py` prints its device, through
+`torch.cuda.get_device_name(0)`; the other seven report timings with nothing identifying what
+produced them. That is a gap rather than a convention, and it is written down here because the
+previous wording claimed the opposite and no run would have contradicted it.
