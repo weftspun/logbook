@@ -96,7 +96,7 @@ things were needed and both are now in the manifest rather than in somebody's sh
 RFD 107e already decided the backbone compiles at `num_windows=1` — 825 ONNX nodes parse
 against 868 rejected — and that it "costs 1.35x wall-clock and **needs retraining**".
 
-T09 converts and ports, and it sits *after* T08 trains. A plan followed in its own numbered
+T09 converts and ports, and it sits _after_ T08 trains. A plan followed in its own numbered
 order therefore trains at the windowing the detector was written with, finds out at T09 that
 the compiler refuses it, and pays for the training run twice. Nothing in the graph says
 otherwise, because the constraint belongs to the compiler and the graph only knows tasks.
@@ -110,7 +110,7 @@ One quantization schedule comes out of DFC 5.3.0 and the rest of the fleet runs 
 schedule. A detector quantised three ways is three detectors, and a number measured on one desk
 stops transferring to the next.
 
-**Not condition 5.** That forbids a quantised *generator* from writing corpus data. The
+**Not condition 5.** That forbids a quantised _generator_ from writing corpus data. The
 detector's quantization is deployment — it reads frames somebody else rendered and emits
 keypoints, and nothing it produces enters a corpus. Only T05's generator path is bound.
 
@@ -146,12 +146,12 @@ cable.
 `cores x lanes x 2 for the fused multiply-add x clock`, re-derived by the checker so a
 transcription error fails a command:
 
-| device      | derivation                 | FP32    | memory | bf16   |
-| ----------- | -------------------------- | ------- | ------ | ------ |
-| 3090 (live) | 82 x 128 x 2 x 1.695 GHz   | 35.6 TF | 24 GiB | native |
-| 4090 (off)  | 128 x 128 x 2 x 2.52 GHz   | 82.6 TF | 24 GiB | native |
-| M2 Pro      | 19 x 128 x 2 x 1.398 GHz   | 6.8 TF  | 32 GiB | **no** |
-| Hailo-10H   | published, 40 TOPS INT4    | —       | 8 GiB  | n/a    |
+| device      | derivation               | FP32    | memory | bf16   |
+| ----------- | ------------------------ | ------- | ------ | ------ |
+| 3090 (live) | 82 x 128 x 2 x 1.695 GHz | 35.6 TF | 24 GiB | native |
+| 4090 (off)  | 128 x 128 x 2 x 2.52 GHz | 82.6 TF | 24 GiB | native |
+| M2 Pro      | 19 x 128 x 2 x 1.398 GHz | 6.8 TF  | 32 GiB | **no** |
+| Hailo-10H   | published, 40 TOPS INT4  | —       | 8 GiB  | n/a    |
 
 All three clocks are vendor boost figures. **None was read off a desk**, and the checker counts
 them as ASSUMED rather than letting the table read as measured. The Hailo row divides by 40
