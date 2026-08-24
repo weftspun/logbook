@@ -1,6 +1,6 @@
 # Working agreements
 
-Working agreements for every project in the weftspun workspace, and the
+Working agreements for every project in the Weftspun workspace, and the
 capability rules for the agent that works in them.
 
 The file lives in `weftspun/logbook` and reaches the workspace root through
@@ -21,15 +21,15 @@ Standing constraints follow. Each carries a cost behind it; the incident sits
 alongside this file in `weftspun/logbook` (`todo.md` for the narrative,
 `PITFALLS.md` for the recurring failure modes and the guards that catch them).
 
-## Hard constraints
+## Hard Constraints
 
 **Compute.** The local desktop GPU is available for compute.
 
 Rented GPU work runs on RunPod: please tear down after use, then
-**double-check** the teardown, because anything not in a git repo goes with the
-machine — so if it matters, it is committed and pushed before teardown.
+**double-check** the tear down, because anything not in a git repo goes with the
+machine — so if it matters, it is committed and pushed before tear down.
 
-Teardown was not only a cost control; it was a **forcing function for
+Tear down was not only a cost control; it was a **forcing function for
 committing**. A rented box that disappears at the end of the day makes "push
 before you stop" automatic. A local GPU never disappears, so results can sit
 uncommitted on one desk indefinitely and nothing reports it.
@@ -38,12 +38,12 @@ So the commit discipline now stands on its own rather than being enforced by the
 hardware going away: work that matters is pushed when it is produced, not when
 the machine is about to vanish.
 
-**Archive formats.** openusd `.usda` if we want to remain text editable and zstd
+**Archive formats.** OpenUSD `.usda` if we want to remain text editable and ZStandard
 parquet for bulk storage. **zip is not acceptable**, and neither is gzip;
-recompress and verify payload hashes before deleting an original.
+compress and verify payload hashes before deleting an original.
 
 **Normal form.** Data is in **Essential Tuple Normal Form**: interned
-vocabularies, satellite relations rather than nullable columns, **no NULLs**, no
+vocabularies, satellite relations rather than nullable columns, **no nulls**, no
 derivable columns. A value like `-1` for "no parent" is a value; a NULL is not.
 
 **Data hygiene.** Training data only — validation and test splits are strictly
@@ -69,9 +69,9 @@ corpus only when all four hold:
    inputs — mix in real or constructed data, because the failure this rule
    exists to prevent is a student that is excellent on its teacher's output and
    mediocre on the world;
-4. evaluation uses real or constructed data only. A model measured on its own
+4. Evaluation uses real or constructed data only. A model measured on its own
    generation distribution has not been measured.
-5. the generator runs at its published precision. **Quantised weights do not
+5. The generator runs at its published precision. **Quantized weights do not
    produce corpus data**, whatever they cost to run.
 
 Condition 5 is a decision rather than a measurement, and the measurement first
@@ -87,7 +87,7 @@ Holding the prompt fixed reverses it:
     NF4         upstream's default   0.825
 
 At four bits with the negative prompt the pose survives better than the figure
-originally cited for bf16. The prompt moved the result; precision did not
+originally cited for `bf16`. The prompt moved the result; precision did not
 measurably move it.
 
 The condition stays because it was decided, not derived: quantised generators do
@@ -115,11 +115,11 @@ would not. That is precisely why it is worth protecting.
 
 Two corollaries that are easy to violate without noticing:
 
-- **Never generate from it.** If train2017 feeds a generation pipeline, val2017
+- **Never generate from it.** If `train2017` feeds a generation pipeline, `val2017`
   must not — an image generated from a held-out photo carries that photo's
   content into training.
-- **Anything derived from val2017 inherits its status.** The COCO-OOD stylized
-  sets (`6-datasource/coco-ood-eval`) are val2017 restyled, so they are
+- **Anything derived from `val2017` inherits its status.** The COCO-OOD stylized
+  sets (`6-datasource/coco-ood-eval`) are `val2017` restyled, so they are
   evaluation-only twice over: derived from the holdout, and generated.
 
 Real photographs validate the pose pipeline, not the layer-decomposition task —
@@ -144,24 +144,24 @@ The old wording read "no scraped or third-party pose references", and it was too
 coarse in the same way the synthetic ban was. Its three targets — CMU
 (provenance), Mixamo (licensing), posemaniacs (scraping) — are each a licence or
 provenance failure, so "third-party" was standing in for "unlicensed
-third-party". As written it also excluded CC-BY-4.0 mocap with clean citation
+third-party". As written it also excluded CC-BY-4.0 motion capture clips with clean citation
 metadata, which is not the hazard and never was.
 
 Two axes decide it, and both must hold.
 
-**Licence.** The set carries a readable licence permitting commercial use and
+**License.** The set carries a readable license permitting commercial use and
 derivatives — the same bar `filter_coco_licenses.py` applies to images.
-`CITATION.cff` alongside the data, naming the licence and the source record, is
-the evidence. A set behind a registration form is not licence-clean: terms that
+`CITATION.cff` alongside the data, naming the license and the source record, is
+the evidence. A set behind a registration form is not license-clean: terms that
 cannot be read without accepting them cannot be gated on.
 
 **Role.** A pose may be used as a **control** — conditioning a generation whose
-output is then verified back against the pose it was given — or retargeted into
+output is then verified back against the pose it was given — or targeted into
 an asset we ship. The first is transient: the pose shapes a render and the check
 confirms the body matches. The second embeds someone else's motion in a
 deliverable, which is what the rule was written to stop. Control use is
-permitted for licence-clean sets; shipping retargeted third-party motion is not,
-whatever the licence.
+permitted for license-clean sets; shipping targeted third-party motion is not,
+whatever the license.
 
 The verification is not optional decoration. A pose used as a control and never
 checked is a pose we assumed was followed, and `pose-consensus`'s referee exists
@@ -189,10 +189,10 @@ a project placed only there is unplaced — placement is what a _live_ goal
 manifest says, not what the last revision of a read-only one says.
 
 **Deliverables.** Video-ready assets land as PSD or a video/image intermediate
-with `.cff` title and metadata, before any pod teardown. PSD because it carries
+with `.cff` title and metadata, before any pod tear down. PSD because it carries
 lossless vector and raster layers.
 
-## How measurements are reported
+## How Measurements Are Reported
 
 Pair every physical measurement with a household-object equivalent. "4.3 mm"
 does not tell a reader whether an error matters; "about three stacked pennies"
@@ -203,7 +203,7 @@ mm, AA 14.5 mm, nickel 21.2 mm, golf ball 42.7 mm, adult wrist 57 mm, soda can
 Where a script prints measurements repeatedly, give it a helper rather than
 relying on recall.
 
-## How work is verified
+## How Work Is Verified
 
 These recur often enough to state as rules:
 
@@ -223,7 +223,7 @@ These recur often enough to state as rules:
 7. **Bugs live at interfaces**, not inside components. Name the interfaces and
    check each.
 
-## How other people's codebases are edited
+## How Other People's Codebases Are Edited
 
 A weftspun file carries the measurement and the retraction that produced it, and
 it is commented accordingly. Another project did not ask for that. Pushing our
@@ -253,7 +253,7 @@ Godot change uses `GLOBAL_DEF` and a GDExtension registers under its own group.
 The same rule holds anywhere else: use the configuration system the project
 already has.
 
-## How the logbook is written
+## How the Logbook Is Written
 
 An entry records the **measurement** rather than the intention, and clips the
 experimental apparatus — enough to re-run the test, not merely its conclusion.
@@ -305,7 +305,7 @@ The argument behind each row -- the measurements, the retractions, and what each
 entry does and does not cover -- is in [`BLOCKLIST.md`](BLOCKLIST.md), one section per row that
 says "see below". `scripts/check_blocklist_detail.py` keeps the two in agreement.
 
-## What belongs here
+## What Belongs Here
 
 - `CLAUDE.md` — this file: the working agreements, and the rule below.
 
@@ -322,7 +322,7 @@ has no diff behind it to enforce it. It stands as an agreement instead of a
 gate, which is weaker, and whoever wants the gate back should restore a tracked
 settings file rather than assume one is still there.
 
-## The rule for adding a permission
+## The Rule for Adding a Permission
 
 An allowlist entry removes a question somebody would otherwise be asked, so add
 the narrowest thing that answers it. `Bash(ps -Ao pid,args)` rather than
@@ -335,7 +335,7 @@ identical from the receiving end, and the cost of being wrong is asymmetric.
 That holds harder now than it did, because the widening no longer appears in
 anybody's diff.
 
-## Why a link after all
+## Why a Link After All
 
 This section used to argue the opposite, and the argument is kept rather than
 deleted, because a reader who knows which road was tried is better off than one
