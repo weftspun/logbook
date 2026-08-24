@@ -423,6 +423,169 @@ finding it out after the GPU time is spent is the expensive order."""
             custom int fieldsMissing = 2
         }
 
+        def "F15_AllFourIndexingBlockersHaveCompilerAcceptedRewrites" (
+            doc = """Every operator the accelerator refuses now has a rewrite the
+compiler takes, and one tent kernel does all four.
+
+MEASURED FIRST, WHICH CHANGED THE PLAN. Every blocker's index was traced to see whether it
+folds:
+
+    ScatterND        85   index DATA, updates DATA
+    GridSample        8   grid  DATA
+    GatherElements    2   index DATA
+    TopK              1   K     CONSTANT
+
+So the constant fold that cleared the `Tile` blocker does not apply to any of the first
+three. An earlier reading of this file predicted ScatterND would be the constant
+class-padding of the keypoint schema; it is not, and that prediction is withdrawn.
+
+THE REWRITE. Bilinear interpolation is a separable tent vanishing beyond one pixel, so an
+indexed read is a weighted sum over a FIXED range of integer positions:
+
+    out[i] = sum_k data[k] * tent(idx - k)
+
+At integer positions the tent IS a one-hot, so the two agree exactly rather than
+approximately. The index moves out of the ADDRESS and into a MULTIPLIER; every address is
+then fixed at compile time. The addresses were the objection and the arithmetic never was.
+
+    rewrite            nodes   max|diff| vs reference   DFC on hailo10h
+    DeformBounded        160   3.081e-15 (r=1)          OK
+    ScatterOneHot        939   0.000e+00                OK
+    GatherOneHot        1353   0.000e+00                OK
+    TopKRank             915   0.000e+00 (N=64)         OK
+
+Each ships a negative control that must fail: an offset outside the clamp, and a fractional
+index, which are the quiet ways each rewrite would be wrong. The deformable one is proved
+rather than sampled -- `weftspun/lean-deform-exact`, six theorems, zero admitted goals, each
+depending on propext, Classical.choice and Quot.sound alone.
+
+RETRACTED WITHIN THE HOUR: TOPK IS REWRITTEN TOO, AND THE CUT IS NOT NEEDED. This entry
+said TopK "should not be" rewritten -- that selection is inherently data-ordered, that
+Hailo's own DETR cuts its graph at exactly that boundary with `parser.nodes` from Conv_195 to
+Add_3451, and that 50 of the zoo's 127 configs specify start and end nodes. All of that is
+true and none of it made the cut necessary.
+
+Data-ORDERED is not data-ADDRESSED. Sorting needs to know which element is larger; it does
+not need to compute an address from the data. Rank by counting separates the two:
+
+    rank[i] = sum_j step(x[j] - x[i])     how many elements beat element i
+    out[m]  = sum_i x[i] * tent(rank[i] - m)
+
+Every index is a compile-time constant, `tent` is the same one-hot as the other three, and
+`TopKRank` parses on hailo10h -- 915 nodes at N=64, exact against torch.topk.
+
+WHICH REMOVES THE HOST HALF ENTIRELY. A cut is not free: it costs a USB 3.1 round trip per
+frame and the existence of a host-side pipeline. With all four rewritten the graph does not
+leave the part, so the partition this plan has assumed since the edge-NPU entry -- backbone
+on device at 95% of wall, decoder on host at 4.7% -- is a choice rather than a constraint.
+
+THE STEP IS WHERE EXACTNESS GOES, AND IT IS A PRECONDITION ON THE SCORES. A true Heaviside
+is unavailable: `Greater` yields a bool the compiler must then carry, and `t/sqrt(t*t)` is
+0/0 at a tie. So step is a clipped ramp `clip(t * 1e6, 0, 1)`, exact when scores are
+separated by more than 1e-6 and blending two ranks below it. Both controls fire: a 1e-9 gap
+disagrees by 0.999, and an exact tie collapses two one-hots onto one slot and leaves a rank
+empty. TopK on ties is arbitrary anyway, but this is a different arbitrary and says so.
+
+COST, MEASURED IN THE COMPILER'S OWN UNITS RATHER THAN IN ONNX NODES. Node count is the
+convenient proxy: the compiler fuses and folds, and the edge-NPU entry already recorded 825
+nodes becoming 336 layers. Translated to hailo10h:
+
+    rewrite              onnx   layers   ratio
+    DeformBounded         160       65    0.41
+    TopKElimination       485      230    0.47
+    ScatterOneHot         939      629    0.67
+    GatherOneHot         1353      625    0.46
+
+1,549 layers in total, against the 336 the backbone compiles to at 576. So the rewrites are
+roughly 4.6x the backbone in LAYERS while the decoder they replace is 4.7% of wall -- and
+those two numbers cannot be compared, which is the finding rather than a caveat. Layers are
+not cycles: 207 normalization layers and 104 reduce_sum layers are the same count and not the
+same work, which is why the histogram is recorded beside the total.
+
+The layer mix says where the weight sits. ScatterOneHot and GatherOneHot are 207
+normalization plus 104 each of feature_multiplier, activation and ew_mult -- the per-slot
+blocks, and the reason both sit near 625. DeformBounded is 65 layers, small enough that its
+8 instances are unlikely to matter. TopKElimination is 230 and there is one of it.
+
+WHAT IS STILL NOT MEASURED, STATED PLAINLY. No schedule and no cycle count. `optimize()`
+needs a calibration set and `compile()` needs both, and the profiler has never been run here
+-- the same gap the edge-NPU entry admits about its own throughput figures, which divide by
+40 TOPS at an assumed 30% utilisation. Whether eliminating the host cut is worth 1,549 layers
+is therefore still unanswered, and answering it needs a calibration set rather than another
+parse.
+
+RETRACTED, AND IT WAS MINE: the claim that data-dependent addressing is architectural and
+therefore cannot run on a dataflow part. The addressing observation was right and the
+conclusion hung on it was not carried by any measurement. `KNOWN_BLOCKERS` says a GridSample
+decomposition "produces GatherElements", which is true of the naive decomposition and false
+of this one -- it produces no dynamic index at all."""
+        )
+        {
+            custom uniform token subject = "T09_GgufAndHead"
+            custom string date = "2026-08-23"
+            custom string evidence = "gate_dfc_ops.py hailo10h: DeformBounded OK, ScatterOneHot OK, GatherOneHot OK; index-origin trace 85/8/2 DATA, TopK K CONSTANT"
+            custom int blockersRewritten = 4
+            custom int blockersRemaining = 0
+            custom bool hostTransferRequired = 0
+            custom bool costMeasuredInLayers = 1
+            custom bool costMeasuredInCycles = 0
+            custom int rewriteLayersTotal = 1549
+            custom bool wasRetracted = 1
+        }
+
+        def "F14_TheKeypointModelClearsTheAcceleratorAtOneWindow" (
+            doc = """The keypoint device half is compatible with the UGen300, and the
+checkpoint's own default is the incompatible configuration.
+
+Measured with `scripts/gate_onnx_device.py` at 576, antialias resize folded, against the
+DEVICE_OPS allowlist:
+
+    num_windows=2   868 nodes   23 operators   max|diff| 3.338e-06   outside: Tile x1
+    num_windows=1   825 nodes   22 operators   max|diff| 3.934e-06   outside: none
+
+Those node counts are the ones `logbook-edge-npu-and-the-anny-forward.md` already recorded
+as REJECTED and PARSE OK respectively -- taken there on the plain backbone, and now taken on
+the keypoint variant, which is the model that actually ships.
+
+`RFDETRKeypointPreviewConfig.num_windows` defaults to 2. So the model as constructed exports
+the graph DFC 5.3.0 refuses, and the single blocker is the Tile that replicates DINOv2's CLS
+token once per attention window: "Unsupported concat over axis batch". At one window there
+is no per-window replication, the Tile does not exist rather than being folded, and every
+operator is inside the allowlist.
+
+THAT IS A NARROWER RESULT THAN "IT DEPLOYS", AND THE DIFFERENCE MATTERS. What clears is the
+DEVICE HALF -- backbone and projector, which the same logbook entry measures at 95.0% of
+wall. The decoder does not and is not expected to: GridSample is deformable attention, which
+Hailo state is unsupported with no plan to add it, and ScatterND is the keypoint-schema
+scatter. Those sit in the remaining 4.7%, on the host. The chain partitions by kind rather
+than by size, and this measurement confirms the device side of that partition for the
+keypoint model specifically.
+
+COST, FROM THE SAME ENTRY: losing windowing is 1.35x wall-clock, 238.4 ms against 175.9 ms
+at 576. The numeric agreement here is 3.9e-06 against the port's own bound of 4.2e-3, so
+dropping to one window is not a precision compromise.
+
+TWO THINGS THIS RUN FIXED BEFORE IT COULD ANSWER ANYTHING. `rf-detr-cpp` had no pixi.toml,
+no pyproject.toml and no requirements file, so neither gate could be run from a described
+environment on any desk -- F07's shape in a second repository. And `gate_onnx_device.py`
+defaulted its output to `/tmp/device_half.onnx`, which does not exist on Windows, so the
+export reached the write and died with a FileNotFoundError that reads like a model problem
+in a traceback. A go/no-go about hardware has to run on the desk the work happens on.
+
+`num_windows` is now a gate argument rather than a default nobody reads, with
+`device-gate-nw1` as its task."""
+        )
+        {
+            custom uniform token subject = "T09_GgufAndHead"
+            custom string date = "2026-08-23"
+            custom string evidence = "gate_onnx_device.py 576: nw=2 868 nodes Tile x1 outside DEVICE_OPS; nw=1 825 nodes, none outside, PASS"
+            custom int nodesRejectedConfig = 868
+            custom int nodesAcceptedConfig = 825
+            custom int checkpointDefaultWindows = 2
+            custom bool deviceHalfClears = 1
+            custom bool decoderClears = 0
+        }
+
         def "F13_IdentitiesWereSampledOverSixOfElevenPhenotypes" (
             doc = """Bypassing the shared model builder cost the corpus its ancestry
 variation, and nothing reported it.
