@@ -274,30 +274,30 @@ restating them, so the document and the gate cannot disagree.
 
 Sources excluded from corpora, with the reason:
 
-| source                                             | reason                                                                                                                              |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| CMU mocap                                          | provenance                                                                                                                          |
-| Mixamo animation packs                             | licensing                                                                                                                           |
-| posemaniacs                                        | third-party pose scraping                                                                                                           |
-| CC-BY-SA                                           | share-alike exposure                                                                                                                |
-| **OpenRAIL-M** as a _generator_                    | use-restrictions propagate into anything trained on the output — **passthrough use is exempt**, see below                           |
-| **FLUX.1**                                         | the conditionable half is non-commercial; the permissive half cannot be conditioned — see below                                     |
-| generators with no licence-clean **depth** control | HiDream-I1, SANA — see below                                                                                                        |
-| **hosted-API generators** as a corpus source       | Nano-banana / Gemini and any API-only model — condition 1 cannot be satisfied without a checkpoint, see below                       |
-| DeepFashion                                        | re-export of a research-only corpus                                                                                                 |
-| AddBiomechanics `.b3d` as an identity source       | lab volunteers — narrow and inequitable population                                                                                  |
-| `caldata_*_jc.parquet`                             | pre-cut derivatives; use originals                                                                                                  |
-| EasyDiffusion outputs, seethrough PSDs             | secondary generation                                                                                                                |
-| **Blender**                                        | renders are not reproducible across versions — see below                                                                            |
-| **Qwen-Image-Edit** (2509/2511)                    | 20.4B: runs here only quantised, and quantised it corrupts — see below                                                              |
-| **P3-SAM / Hunyuan3D-Part**                        | territory-restricted licence: excludes EU, UK and South Korea — see below                                                           |
-| **Krea 2 / krea2-turbo**                           | revenue-gated licence, and the planned deployment was Q4 — see below                                                                |
-| **BRIA RMBG**                                      | gated and non-commercial — see below                                                                                                |
-| **abliterated weights**                            | refusal removal by weight edit, unmeasured elsewhere — see below                                                                    |
-| `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
-| **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
+| source                                             | reason                                                                                                                                           |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CMU mocap                                          | provenance                                                                                                                                       |
+| Mixamo animation packs                             | licensing                                                                                                                                        |
+| posemaniacs                                        | third-party pose scraping                                                                                                                        |
+| CC-BY-SA                                           | share-alike exposure                                                                                                                             |
+| **OpenRAIL-M** as a _generator_                    | use-restrictions propagate into anything trained on the output — **passthrough use is exempt**, see below                                        |
+| **FLUX.1**                                         | the conditionable half is non-commercial; the permissive half cannot be conditioned — see below                                                  |
+| generators with no licence-clean **depth** control | HiDream-I1, SANA — see below                                                                                                                     |
+| **hosted-API generators** as a corpus source       | Nano-banana / Gemini and any API-only model — condition 1 cannot be satisfied without a checkpoint, see below                                    |
+| DeepFashion                                        | re-export of a research-only corpus                                                                                                              |
+| AddBiomechanics `.b3d` as an identity source       | lab volunteers — narrow and inequitable population                                                                                               |
+| `caldata_*_jc.parquet`                             | pre-cut derivatives; use originals                                                                                                               |
+| EasyDiffusion outputs, seethrough PSDs             | secondary generation                                                                                                                             |
+| **Blender**                                        | renders are not reproducible across versions — see below                                                                                         |
+| **Qwen-Image-Edit** (2509/2511)                    | 20.4B: runs here only quantised, and quantised it corrupts — see below                                                                           |
+| **P3-SAM / Hunyuan3D-Part**                        | territory-restricted licence: excludes EU, UK and South Korea — see below                                                                        |
+| **Krea 2 / krea2-turbo**                           | revenue-gated licence, and the planned deployment was Q4 — see below                                                                             |
+| **BRIA RMBG**                                      | gated and non-commercial — see below                                                                                                             |
+| **abliterated weights**                            | refusal removal by weight edit, unmeasured elsewhere — see below                                                                                 |
+| `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                                            |
+| **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                                            |
 | **`uv` for project environments**                  | an environment nothing declares and nobody can rebuild — use `pixi`; **an embedded interpreter pinning its deps in source is exempt**, see below |
-| `weftspun/rf-detr-keypoint-data`                   | **val2017-derived** — carries the whole blinded holdout, and 78% of it is licence-dirty. Validation only, never training. See below |
+| `weftspun/rf-detr-keypoint-data`                   | **val2017-derived** — carries the whole blinded holdout, and 78% of it is licence-dirty. Validation only, never training. See below              |
 
 The cosplay photo library may be used for **validation only**, never training.
 
