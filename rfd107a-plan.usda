@@ -423,6 +423,86 @@ finding it out after the GPU time is spent is the expensive order."""
             custom int fieldsMissing = 2
         }
 
+        def "F16_TheOperatorTableAndItsGatesDisagreeAboutTwoOperators" (
+            doc = """The accelerator's operator table now exists as data, and reconciling it
+against its own gates leaves exactly two operators misfiled.
+
+WHAT THE TABLE IS. `scripts/hailo_ops.usda` in `rf-detr-cpp`: the vendor's supported-layer
+and supported-activation tables, the multi-operator patterns, the opset-17 operator list,
+and a row for every operator the part does not implement -- either a rewrite into ones it
+does, or a recorded refusal. Counted by opening the layer under usd-core 26.8:
+
+    Layers                40
+    Activations           18
+    Patterns contribute    6      Erf HardSigmoid Mul Sigmoid Softplus Tanh
+    distinct documented   58
+    OnnxSpec             178
+    Secondary rewrites    82
+    Refused               38
+    rows                 120      = 178 - 58
+
+DOCUMENTED IS THE UNION OF THREE RELATIONS, NOT TWO, and this is where the reconciliation
+turns. An operator can be documented only as a step inside a pattern sequence and in no
+other way: `Erf` appears nowhere in `Layers` or `Activations` and is documented solely
+through the Gelu pattern.
+
+RETRACTED, AND IT WAS MINE, WITHIN THE HOUR. I first read `Layers` and `Activations`, called
+their union the documented set, got 57, and reported both that the prose saying 58 was off by
+one and that `Erf` was an operator nobody had filed. Both were wrong and the cause was the
+same: two lists are the convenient proxy for a set that is three relations wide, and reading
+them is wrong by six operators. `check_device_ops.py`'s own control -- "Erf is reachable
+through the gelu sequence, Erf therefore counts as documented" -- says so, and it was sitting
+in the self-test the whole time.
+
+THE TWO THAT SURVIVE THE CORRECTION:
+
+    Reciprocal   in OnnxSpec, documented nowhere, and carrying NEITHER a rewrite nor a
+                 refusal -- while `check_rewrites_against_spec.py` carries a rewrite for
+                 it, 1/x, which agrees with the reference at 0.00e+00 and catches its
+                 mutant. The gate proves a rewrite the table does not contain.
+
+    Softsign     documented AND carrying a Secondary rewrite, which is a rewrite for
+                 something the part already implements.
+
+THEY CANCEL IN THE TOTAL, which is the part worth keeping. 120 rows against 120 undocumented
+operators reconciles perfectly while one operator has no row and one row has no need to
+exist. A matching total is not a reconciliation, and this file would have accepted the total.
+
+DETECTION FLOOR ON THE REWRITES. `check_rewrites_against_spec.py` executes 12 of the 82
+rewrites -- 15%. The other 70 are unexecuted, not passing. Its eight controls fire and 23 of
+23 mutants are caught, and neither fact says anything about the 70.
+
+THE DEVICE-OPS GATE FAILS ON THIS DESK, AND THAT IS THE GATE WORKING. It needs
+`device_half_nw1.onnx` and `device_half_default.onnx`, which `gate_onnx_device.py` generates
+and which are not in the tree; only `build/onehot/*.onnx` is. With two exports it observes 5
+operators where `docs/measurements/device-ops-verification.md` records 18, so 9 DEVICE_OPS
+entries fall through with no evidence of either kind rather than the 5 the doc records. An
+unmet precondition is a FAIL and not a skip, and it reported one.
+
+NEITHER GATE IS WIRED TO ANYTHING. `checks.yml` runs prek, `.pre-commit-config.yaml` runs
+prettier, and `[feature.gate.tasks]` names four tasks, none of them these. Both run only when
+somebody types them, so their silence reads exactly like a pass.
+
+AND THE MEASUREMENT DOC CANNOT BE REPRODUCED AS WRITTEN. It says to reproduce with
+`scripts/hailo_supported_ops.py --verify <dir-of-exports>` and names that file as holding the
+vendor tables. No such file is in the tree -- the tables moved into `hailo_ops.usda`. The doc
+records a measurement taken before the move and its instructions did not follow."""
+        )
+        {
+            custom uniform token subject = "T09_GgufAndHead"
+            custom string date = "2026-08-24"
+            custom string evidence = "hailo_ops.usda under usd-core 26.8: 58 documented, 82 Secondary, 38 Refused; check_rewrites_against_spec.py 12/82 agree 0 disagree 23 mutants caught; check_device_ops.py real run FAIL 9 unbacked"
+            custom int documentedOperators = 58
+            custom int onnxSpecOperators = 178
+            custom int rewriteRows = 82
+            custom int refusedRows = 38
+            custom int operatorsMisfiled = 2
+            custom int rewritesExecutedBySpecGate = 12
+            custom bool deviceOpsGatePassesHere = 0
+            custom bool gatesWiredToCi = 0
+            custom bool wasRetracted = 1
+        }
+
         def "F15_AllFourIndexingBlockersHaveCompilerAcceptedRewrites" (
             doc = """Every operator the accelerator refuses now has a rewrite the
 compiler takes, and one tent kernel does all four.
