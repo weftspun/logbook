@@ -67,6 +67,127 @@ def Scope "Rfd107a" (
         custom float qwenDefaultStrength = 0.8
     }
 
+
+    # ---------------------------------------------------------------------------------
+    # THE DEVICES, BECAUSE A DURATION WITHOUT ONE IS NOT A DURATION.
+    #
+    # Every timing this plan inherited was taken on the 4090, and the 4090 is unplugged. The
+    # soft-renderer entry's Mitsuba figure -- 1.79 ms/image, 0.4 GPU-hours over 800k -- is the
+    # load-bearing one, and it is doubly inapplicable: `mi_bench.py` and `mi_bench2.py` both
+    # open with `mi.set_variant('cuda_ad_rgb')`, which is neither the shipping variant nor a
+    # variant this fleet can run outside that one card. RETRACTED as a corpus-render estimate.
+    # It remains correct about what it measured.
+    #
+    # `scripts/mi_bench_llvm.py` replaces it for the shipping pair. Peak rates below are DERIVED
+    # -- cores x lanes x 2 for the fused multiply-add x clock -- rather than quoted, and
+    # `check_rfd107a_plan.py` re-derives them, so a transcription error fails a command. Clocks
+    # are vendor boost figures and are marked `clockAssumed` where nothing on the desk confirmed
+    # them.
+    #
+    # A RANKING AND NOT A BUDGET, which is the convention
+    # `logbook-edge-npu-and-the-anny-forward.md` set for the Hailo part and which applies to
+    # every row here: peak rate predicts an ordering between devices and does not predict a
+    # wall-clock for any real graph.
+    # ---------------------------------------------------------------------------------
+    def Scope "Devices"
+    {
+        def "RTX3090" (
+            doc = """The card that is plugged in. Ampere, so bf16 is native and the tensor
+cores are real, which is what lets a generator run at its published precision -- condition 5
+forbids the quantised alternative for anything writing corpus data.
+
+2.3x below the 4090 on derived FP32 and 0.93x on bandwidth. Every estimate inherited from a
+4090 measurement moves by that factor before anything else is considered."""
+        )
+        {
+            custom uniform token kind = "gpu"
+            custom int computeUnits = 82
+            custom int lanesPerUnit = 128
+            custom float clockGhz = 1.695
+            custom float fp32Tflops = 35.6
+            custom float bandwidthGbs = 936
+            custom float memoryGib = 24
+            custom bool bf16Native = 1
+            custom bool tensorCores = 1
+            custom bool pluggedIn = 1
+            custom bool clockAssumed = 1
+        }
+
+        def "RTX4090" (
+            doc = """The baseline, and it is not a schedulable device. Every figure in the
+logbook that carries a GPU carries this one, so it belongs in the table -- a number without a
+baseline is not a measurement -- with `pluggedIn = 0` so its absence is a value rather than a
+silence. Plugging it in is the cheapest available schedule compression and the plan should be
+able to price that rather than argue it."""
+        )
+        {
+            custom uniform token kind = "gpu"
+            custom int computeUnits = 128
+            custom int lanesPerUnit = 128
+            custom float clockGhz = 2.52
+            custom float fp32Tflops = 82.6
+            custom float bandwidthGbs = 1008
+            custom float memoryGib = 24
+            custom bool bf16Native = 1
+            custom bool tensorCores = 1
+            custom bool pluggedIn = 0
+            custom bool clockAssumed = 1
+        }
+
+        def "M2Pro" (
+            doc = """Mac mini, 19 GPU cores, 32 GiB unified. The largest single memory pool in
+the fleet and the smallest compute: 5.2x below the 3090 on derived FP32, no tensor cores, and
+NO NATIVE bf16 -- so running a generator at its published precision here is emulation, which is
+a correctness question before it is a speed one and is unmeasured either way.
+
+WHAT IT IS ACTUALLY FOR, MEASURED RATHER THAN ASSUMED. The corpus render's shipping variant is
+`llvm_ad_rgb` at one thread, which is a CPU path, so it neither needs nor contends for a GPU.
+Measured here at 73.00 ms/image against ANNY's face count, 16.2 hours over 800k in one process
+and 2.2 hours across eight -- determinism is per-image, so processes parallelise it without
+touching the guarantee. That is not a weak node, it is the corpus renderer."""
+        )
+        {
+            custom uniform token kind = "gpu"
+            custom int computeUnits = 19
+            custom int lanesPerUnit = 128
+            custom float clockGhz = 1.398
+            custom float fp32Tflops = 6.8
+            custom float bandwidthGbs = 200
+            custom float memoryGib = 32
+            custom bool bf16Native = 0
+            custom bool tensorCores = 0
+            custom bool pluggedIn = 1
+            custom bool clockAssumed = 1
+            custom int cpuPerformanceCores = 8
+            custom int cpuEfficiencyCores = 4
+        }
+
+        def "Hailo10H" (
+            doc = """The ASUS USB part, and the target the plan is now sequenced around. 8 GiB,
+20 TOPS INT8 and 40 INT4, reached through Dataflow Compiler 5.3.0.
+
+IT CANNOT WRITE CORPUS DATA AND THAT IS A RULE RATHER THAN A LIMIT. Condition 5 binds
+generators: quantised weights do not produce corpus data. An INT8/INT4 part is quantised by
+construction, so it is never a generator here. It is a DEPLOYMENT target, and it may host a
+verifier -- `pixi.toml` already records why that is permitted, since a verifier emits a number
+about somebody else's frame and nothing it produces enters a corpus.
+
+Throughput divides by 40 TOPS INT4 at an ASSUMED 30% utilisation, which is the convention
+`logbook-edge-npu-and-the-anny-forward.md` set and which it also flags: the DFC profiler was
+never run, so those figures rank and do not budget."""
+        )
+        {
+            custom uniform token kind = "npu"
+            custom float topsInt8 = 20
+            custom float topsInt4 = 40
+            custom float memoryGib = 8
+            custom float assumedUtilisation = 0.3
+            custom bool bf16Native = 0
+            custom bool pluggedIn = 1
+            custom bool producesCorpusData = 0
+        }
+    }
+
     # ---------------------------------------------------------------------------------
     # Standing constraints. They sit beside the plan rather than inside it, because they
     # hold at every step and belong to no one of them.
@@ -150,6 +271,53 @@ of motion one and not a substitute for it."""
             custom uniform token kind = "latents"
             custom bool restPoseNeedsRomGate = 0
             custom bool posedNeedsRomGate = 1
+        }
+
+
+        def "EdgeCompileGatesTraining" (
+            doc = """THE HAILO PART IS BUILT FIRST, AND THAT REACHES BACKWARDS INTO THE
+TRAINING RUN.
+
+RFD 107e already decided it: "Compile the backbone with `num_windows=1`. Measured: it parses
+and `num_windows=2` does not. It costs 1.35x wall-clock and NEEDS RETRAINING." The measurement
+is in `logbook-edge-npu-and-the-anny-forward.md` -- 868 nodes REJECTED at two windows, 825
+PARSE OK at one, same model and same resolution.
+
+Read against this plan's order, that decision is a trap. T09 converts and ports, and it sits
+AFTER T08 trains. So a plan followed in its own numbered order trains at the windowing the
+detector was written with, discovers at T09 that the compiler refuses it, and pays for the
+training run twice. Nothing in the graph says otherwise, because the constraint belongs to the
+compiler and the graph only knows about tasks.
+
+WHY THIS IS A CONSTRAINT AND NOT A NEW EDGE, since the shape of the fix was argued. An edge
+from T09 back into T08 is a cycle, and the graph is checked for exactly that. Splitting a new
+task out ahead of T08 says the schedule is waiting on work, and it is not -- 107e's decision is
+already made and the compile already measured. What is owed is that T08 HONOURS a decision
+taken elsewhere, which is what a standing constraint is for. The plan's own convention agrees:
+constraints "sit beside the plan rather than inside it, because they hold at every step and
+belong to no one of them."
+
+ONE QUANTIZATION SCHEDULE, DERIVED ONCE, REUSED ACROSS THE FLEET. The per-layer INT8/INT4
+assignment and its calibration set come out of DFC 5.3.0 for the Hailo part, and the other
+devices run that same schedule rather than each deriving its own. The reason is comparability
+before it is convenience: a detector quantised three ways is three detectors, and a number
+measured on one desk stops transferring to the next. `scripts/hailo_ops.usda` in `rf-detr-cpp`
+is the precedent for where it lives -- the operator table is already data rather than prose,
+and the schedule belongs beside it in the same form.
+
+THIS IS NOT CONDITION 5, AND THE TWO GET CONFLATED. Condition 5 forbids a QUANTISED GENERATOR
+from writing corpus data. The detector's quantisation is deployment: it reads frames somebody
+else rendered and emits keypoints, and nothing it produces enters a corpus. Only T05's
+generator path is bound by condition 5, and it is bound there regardless of what the edge part
+does."""
+        )
+        {
+            custom uniform token kind = "edge"
+            custom int numWindows = 1
+            custom int onnxNodesAtOneWindow = 825
+            custom int onnxNodesRejectedAtTwo = 868
+            custom float windowingWallClockCost = 1.35
+            custom bool scheduleSharedAcrossFleet = 1
         }
 
         def "QwenDomainsAreOneModel" (
@@ -1065,6 +1233,11 @@ reached a thousandth of a penny's thickness.
 None of this blocks projecting twenty poses and looking at them."""
         )
         {
+            # Complete. Ran 2026-08-23; carried at zero so the reranked path measures what is left rather than what is done.
+            custom int optimisticDays = 0
+            custom int mostLikelyDays = 0
+            custom int pessimisticDays = 0
+            custom bool gpuBound = 0
             custom int order = 1
             custom uniform token state = "gate"
             custom string title = "Check the pose library is worth rendering"
@@ -1111,6 +1284,11 @@ ARKit coefficients, the hm08 masks and the camera parameters, per frame, in the 
 below. Reading the two against each other is the next thing to do here, and it is cheap."""
         )
         {
+            # Engineering, not compute. The render itself is measured at 2.2 hours over 800k across eight processes on the M2 Pro, so the outstanding work is the ARKit coefficients, the hm08 masks and the parquet writer rather than throughput.
+            custom int optimisticDays = 3
+            custom int mostLikelyDays = 6
+            custom int pessimisticDays = 12
+            custom bool gpuBound = 0
             custom int order = 2
             custom uniform token state = "build"
             custom string title = "Render the labels rather than annotate them"
@@ -1197,6 +1375,11 @@ roughness and normal, with metallic a constant zero.
 This does not make the task done. What it removes is the reason it had no estimate."""
         )
         {
+            # Bakes once and is reused by every render, so corpus size does not enter. The method exists now -- Mitsuba pinned in pixi.toml -- and what is left is the repository, the UV pass and the determinism check.
+            custom int optimisticDays = 2
+            custom int mostLikelyDays = 4
+            custom int pessimisticDays = 8
+            custom bool gpuBound = 0
             custom int order = 3
             custom uniform token state = "build"
             custom string title = "Bake albedo, roughness and normal over the hm08 UVs"
@@ -1270,6 +1453,11 @@ when the renderer does. The sidecar says so in its own completion message rather
 implying the record is in the corpus."""
         )
         {
+            # Structural half landed 2026-08-23 with six negative controls. What remains is the edited_renders writer, which waits on T02's output format rather than on a card.
+            custom int optimisticDays = 1
+            custom int mostLikelyDays = 2
+            custom int pessimisticDays = 4
+            custom bool gpuBound = 0
             custom int order = 4
             custom uniform token state = "build"
             custom bool provenanceSchemaLanded = 1
@@ -1304,6 +1492,11 @@ corpus: enlarging objects to match target statistics is its advertised advantage
 moves every joint."""
         )
         {
+            # A sweep over the negative prompt and both guidance scales, at bf16 on the 3090 because condition 5 forbids the quantised alternative. The window may be empty, which is why the pessimistic figure is more than four times the optimistic one.
+            custom int optimisticDays = 2
+            custom int mostLikelyDays = 4
+            custom int pessimisticDays = 9
+            custom bool gpuBound = 1
             custom int order = 5
             custom uniform token state = "measure"
             custom string title = "Find the conditioning that keeps the pose and still restyles"
@@ -1352,6 +1545,11 @@ attributes, `visibility` as int8 and `topology_id`, not a schema that does not e
 the file before treating this as more than that."""
         )
         {
+            # Two attributes on a 384-line schema that already exists. Pure CPU and parquet, eligible on every desk in the fleet, and the tightest estimate here because the file can be read before starting.
+            custom int optimisticDays = 1
+            custom int mostLikelyDays = 2
+            custom int pessimisticDays = 3
+            custom bool gpuBound = 0
             custom int order = 6
             custom uniform token state = "build"
             custom string title = "visibility int8, and topology_id as a foreign key"
@@ -1400,6 +1598,11 @@ loop rejects can be corrected in 3D and re-decoded, with the same instrument sco
 That makes the discard rule this task states a floor rather than the only option."""
         )
         {
+            # Per-frame silhouette, depth and referee terms plus the finger-chain gate. Queues behind T05 and T08 on the one card.
+            custom int optimisticDays = 3
+            custom int mostLikelyDays = 6
+            custom int pessimisticDays = 12
+            custom bool gpuBound = 1
             custom int order = 7
             custom uniform token state = "build"
             custom string title = "Verify before training, not after"
@@ -1448,6 +1651,11 @@ include `weftspun/rf-detr-keypoint-data`: it holds all 523 holdout images, split
 own train and test, and 78% of it is licence-dirty."""
         )
         {
+            # The single largest item in the plan and the one bound hardest to the scarce resource. Trains at numWindows=1 per EdgeCompileGatesTraining, or is paid for twice.
+            custom int optimisticDays = 8
+            custom int mostLikelyDays = 15
+            custom int pessimisticDays = 35
+            custom bool gpuBound = 1
             custom int order = 8
             custom uniform token state = "build"
             custom string title = "One head on heterogeneous annotation"
@@ -1484,6 +1692,11 @@ own train and test, and 78% of it is licence-dirty."""
 104."""
         )
         {
+            # Conversion and the head from 17 to 104, against a quantization schedule already fixed on the Hailo part rather than invented here.
+            custom int optimisticDays = 3
+            custom int mostLikelyDays = 6
+            custom int pessimisticDays = 12
+            custom bool gpuBound = 0
             custom int order = 9
             custom uniform token state = "build"
             custom string title = "GGUF, and the head from 17 to 104"
@@ -1511,6 +1724,11 @@ has no ground-truth front-hair / back-hair split, so See-Through still needs hel
 illustrations and this set does not supply them."""
         )
         {
+            # 523 held-out photographs, inference only. Small, and last.
+            custom int optimisticDays = 1
+            custom int mostLikelyDays = 2
+            custom int pessimisticDays = 3
+            custom bool gpuBound = 0
             custom int order = 10
             custom uniform token state = "build"
             custom string title = "Score on real photographs, shared points apart from render-only"
