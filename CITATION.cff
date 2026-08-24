@@ -86,6 +86,23 @@ references:
       which this target refuses. The polynomial core is plain multiply-add and
       emits; the range reduction that would make it valid outside
       [-pi/2, pi/2] does not.
+
+      MEASURED SINCE, and it strengthens the refusal rather than softening it:
+      even where range reduction IS expressible, this target gains nothing from
+      it. exp(x) rewritten as exp(x/2)*exp(x/2) leaves the output span unchanged
+      at 1.65..79.44 and moves the quantized error only from 0.483141 to
+      0.445812. Across four output ranges the error held at 0.5-0.8 percent of
+      span regardless of graph shape, so what sets it is bits over span rather
+      than how the function is decomposed.
+
+      PARTIALLY RETRACTED, the Where clause above. Where is rejected at parse,
+      but it is not unreachable: where(p, a, b) = b + p * (a - b), with the
+      predicate built as p = min(max((x - c) * k, -1e-6), 1), compiles and runs
+      -- float error 3e-6 at k=100, quantized 0.025573 -- using only Sub, Mul,
+      Max, Min and Add. The lower clamp must not be literal 0.0, which is
+      recognised as ReLU, carries no clip_min, and makes the paired min fail with
+      KeyError: 'clip_min' in either order. So ThresholdedRelu may be reachable
+      after all, by this route rather than through Where.
     repository-code: "https://github.com/tinygrad/tinygrad"
     license: MIT
   - type: software
@@ -116,5 +133,41 @@ references:
       graph can never express. So the parallelism is available and the shape is
       not, which is why the refusal stands rather than moving.
     repository-code: "https://github.com/AutomataLab/cuJSON"
+    license: MIT
+  - type: article
+    title: "I-BERT: Integer-only BERT Quantization"
+    authors:
+      - family-names: Kim
+        given-names: Sehoon
+      - family-names: Gholami
+        given-names: Amir
+      - family-names: Yao
+        given-names: Zhewei
+      - family-names: Mahoney
+        given-names: "Michael W."
+      - family-names: Keutzer
+        given-names: Kurt
+    year: 2021
+    collection-title: >-
+      Proceedings of the 38th International Conference on Machine Learning
+      (ICML 2021)
+    url: "https://arxiv.org/abs/2101.01321"
+    abstract: >-
+      Offered against two refusals this target makes: Erf, which it rejects
+      standing alone and also as the Mul-Erf form the vendor documentation calls
+      Gelu, and Exp, which it accepts and then quantizes to 0.483141 of error on
+      a 1.65..79.44 output span. I-BERT replaces both with second-order
+      polynomials -- i-GELU for erf, i-Softmax for exp -- reporting maximum
+      approximation errors of 1.8e-2 and 1.9e-3, and its polynomials are plain
+      multiply-add, which is the half of tinygrad's decompositions that DOES
+      emit here.
+
+      NOT YET MEASURED against this target, and the gap is worth naming before
+      anybody relies on it. i-Softmax still range-reduces with floor and a
+      bit-shift, and floor has no lowering. i-GELU needs sign and abs, neither
+      of which lowers either -- though abs is max(x, -x), and the sign cancels
+      in x * erf(x) because x * sign(x) is abs(x). So the erf half looks
+      reachable with operators that already compile and the exp half does not,
+      which is the opposite of what the paper's error figures alone suggest.
     license: MIT
 
