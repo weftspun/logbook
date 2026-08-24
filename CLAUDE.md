@@ -296,7 +296,7 @@ Sources excluded from corpora, with the reason:
 | **abliterated weights**                            | refusal removal by weight edit, unmeasured elsewhere — see below                                                                    |
 | `alfredplpl/anime-with-caption-cc0`                | hand quality — **images** blocked, captions permitted                                                                               |
 | **git submodules**                                 | a second dependency mechanism `repo status` cannot see — use `default.xml`, see below                                               |
-| **`uv` for project environments**                  | an environment nothing declares and nobody can rebuild — use `pixi`, see below                                                      |
+| **`uv` for project environments**                  | an environment nothing declares and nobody can rebuild — use `pixi`; **an embedded interpreter pinning its deps in source is exempt**, see below |
 | `weftspun/rf-detr-keypoint-data`                   | **val2017-derived** — carries the whole blinded holdout, and 78% of it is licence-dirty. Validation only, never training. See below |
 
 The cosplay photo library may be used for **validation only**, never training.

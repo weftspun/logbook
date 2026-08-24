@@ -142,6 +142,36 @@ to rewrite a dependency stack that already declares itself elsewhere, and it
 does not reach into third-party projects, where the density rule above already
 says to match what is there.
 
+**An embedded interpreter that declares its pins in source is exempt.** This is a
+third limit and it was added because the rule as written forbade something it was
+never aimed at. `pythonx` embeds CPython in a NIF and its entry point is
+`Pythonx.uv_init/1`, which takes a `pyproject.toml` as a string literal:
+
+    Pythonx.uv_init("""
+    [project]
+    name = "nx_shuttle_secondary"
+    version = "0.0.0"
+    requires-python = "==3.11.*"
+    dependencies = ["onnxruntime==1.20.1", "onnx==1.17.0", "numpy"]
+    """)
+
+That block is the declaration. It is tracked, it appears in a diff, it pins the
+interpreter and the packages, and anybody running the code gets the same set. The
+hazard this row names -- an environment nothing declares and nobody can rebuild --
+is absent. Measured once: the resolve took 219ms and installed onnxruntime 1.20.1,
+onnx 1.17.0 and numpy 2.4.6, from a list a reader can see.
+
+The reason it cannot be `pixi` instead is `weft-warp-burrito`. Burrito packages an
+Elixir application into one executable, and an executable cannot shell out to an
+environment that is not inside it. An embedded interpreter travels; a `pixi`
+environment beside the binary does not.
+
+What stays blocked is the shape, not the letters `uv`: an interpreter whose
+packages arrive by hand, a `uv pip install` issued at runtime against a set no
+file lists, or a `uv_init` block that drifts from what the code actually imports.
+The pins are the exemption. Without them this is the Mac session again, with an
+extra layer.
+
 ### Git submodules are blocklisted, and `default.xml` is why
 
 A submodule pins a dependency in a file only `git` reads. `repo status` does not
