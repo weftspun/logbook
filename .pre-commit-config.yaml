@@ -61,3 +61,29 @@ repos:
         files: ^(rfd107a-plan\.usda|scripts/check_rfd107a_plan\.py|CLAUDE\.md)$
         pass_filenames: false
         stages: [manual]
+
+      # A comparison joined twice -- "five soda cans along the axis and against three across it"
+      # -- reads past a first pass and shipped in `check_view_selection.py`. The two prose
+      # gates beside this one, `check_household_units.exs` and `check_prose_tropes.exs`, are
+      # not wired here and are run by hand; that is how the defect reached a committed file, so
+      # this one is wired.
+      #
+      # `language: system` because the gate is a script rather than a package: it needs elixir
+      # on PATH and nothing else, and the CI job installs it with `erlef/setup-beam`. A hook
+      # that silently passes where its interpreter is absent would certify every file it could
+      # not read, so the missing binary is left to fail loudly.
+      - id: double-join
+        name: no comparison is joined twice
+        entry: elixir scripts/check_double_join.exs --file
+        language: system
+        types_or: [markdown, python, text]
+        pass_filenames: true
+
+      # The gate's own controls, run whenever the gate changes. Half of them must FAIL on
+      # known-broken input, because a check that cannot fail certifies the defect.
+      - id: double-join-self-test
+        name: the double-join gate still fails on known-broken prose
+        entry: elixir scripts/check_double_join.exs --self-test
+        language: system
+        files: ^scripts/check_double_join\.exs$
+        pass_filenames: false
