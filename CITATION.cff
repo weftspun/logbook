@@ -86,6 +86,60 @@ references:
       which this target refuses. The polynomial core is plain multiply-add and
       emits; the range reduction that would make it valid outside
       [-pi/2, pi/2] does not.
+
+      MEASURED SINCE, and it strengthens the refusal rather than softening it:
+      even where range reduction IS expressible, this target gains nothing from
+      it. exp(x) rewritten as exp(x/2)*exp(x/2) leaves the output span unchanged
+      at 1.65..79.44 and moves the quantized error only from 0.483141 to
+      0.445812. Across four output ranges the error held at 0.5-0.8 percent of
+      span regardless of graph shape, so what sets it is bits over span rather
+      than how the function is decomposed.
+
+      PARTIALLY RETRACTED, the Where clause above. Where is rejected at parse,
+      but it is not unreachable: where(p, a, b) = b + p * (a - b), with the
+      predicate built as p = min(max((x - c) * k, -1e-6), 1), compiles and runs
+      -- float error 3e-6 at k=100, quantized 0.025573 -- using only Sub, Mul,
+      Max, Min and Add. So ThresholdedRelu may be reachable after all, by this
+      route rather than through Where.
+
+      The lower clamp must not be literal 0.0. CORRECTED: a first reading of this
+      blamed the composition, saying max(x, 0.0) is recognised as ReLU and the
+      PAIRED min then fails reaching for clip_min. It is simpler and worse than
+      that -- max(x, 0.0) alone is rejected, with nothing after it, and the same
+      KeyError: 'clip_min'. The earlier max that compiled had bound 1.0, not 0.0,
+      which is what made the composition look guilty. Any exact-zero floor fails;
+      -1e-6 compiles and costs 1e-6.
+
+      PIECEWISE LINEAR IS THEREFORE PARTLY OPEN, and it is what NPUs do in
+      hardware for exactly these operators. Written as a hinge sum --
+      f(x) = f(t0) + s0*(x - t0) + SUM (s_k - s_{k-1}) * max(x - t_k, eps) -- it
+      needs only Sub, Max, Mul and Add. Measured: 1, 2 and 3 hinges compile, both
+      fanned from one input and chained; 8, 16 and 32 knots do not, failing with
+      ValueError: 'base_ew_add6' is not in list. So there is a size limit between
+      3 and 8 terms, and it is a graph-shape limit rather than an operator one.
+
+      WITHDRAWN, one commit after it was written: a claim here said the fanned
+      hinge form disagrees with the compiler's own float emulation by 0.073750
+      per hinge, and offered it as unexplained. It is explained, and it is not
+      the compiler. Recomputing the same expression entirely in Nx, with nothing
+      compiled, reproduces the error to six decimals -- 1.284628, 0.595394,
+      0.245243, 0.099879 across four fits, identical either way. The hinge sum
+      was misconstructed: the coefficient at knot k must be slopes[k] minus
+      slopes[k-1], and a zip chain had misaligned slopes against knots. The
+      compiler was faithfully computing bad arithmetic.
+
+      Corrected, the fit improves an order of magnitude -- 1.284628 to 0.109919
+      at three segments -- but four segments still fits WORSE than three, so the
+      construction is still wrong and no number from it should be relied on. What
+      survives is only the structural result: hinge terms compile at small counts
+      and do not at eight or more, which was measured on graph shape rather than
+      on any fit being correct.
+
+      The lesson is the reason this paragraph stays rather than being deleted. A
+      discrepancy that scales linearly with a parameter looks like a hardware
+      story and is much more often an indexing bug, and it was reported as the
+      former before the cheap control -- run the same arithmetic with no compiler
+      in the path -- had been done.
     repository-code: "https://github.com/tinygrad/tinygrad"
     license: MIT
   - type: software
@@ -116,5 +170,41 @@ references:
       graph can never express. So the parallelism is available and the shape is
       not, which is why the refusal stands rather than moving.
     repository-code: "https://github.com/AutomataLab/cuJSON"
+    license: MIT
+  - type: article
+    title: "I-BERT: Integer-only BERT Quantization"
+    authors:
+      - family-names: Kim
+        given-names: Sehoon
+      - family-names: Gholami
+        given-names: Amir
+      - family-names: Yao
+        given-names: Zhewei
+      - family-names: Mahoney
+        given-names: "Michael W."
+      - family-names: Keutzer
+        given-names: Kurt
+    year: 2021
+    collection-title: >-
+      Proceedings of the 38th International Conference on Machine Learning
+      (ICML 2021)
+    url: "https://arxiv.org/abs/2101.01321"
+    abstract: >-
+      Offered against two refusals this target makes: Erf, which it rejects
+      standing alone and also as the Mul-Erf form the vendor documentation calls
+      Gelu, and Exp, which it accepts and then quantizes to 0.483141 of error on
+      a 1.65..79.44 output span. I-BERT replaces both with second-order
+      polynomials -- i-GELU for erf, i-Softmax for exp -- reporting maximum
+      approximation errors of 1.8e-2 and 1.9e-3, and its polynomials are plain
+      multiply-add, which is the half of tinygrad's decompositions that DOES
+      emit here.
+
+      NOT YET MEASURED against this target, and the gap is worth naming before
+      anybody relies on it. i-Softmax still range-reduces with floor and a
+      bit-shift, and floor has no lowering. i-GELU needs sign and abs, neither
+      of which lowers either -- though abs is max(x, -x), and the sign cancels
+      in x * erf(x) because x * sign(x) is abs(x). So the erf half looks
+      reachable with operators that already compile and the exp half does not,
+      which is the opposite of what the paper's error figures alone suggest.
     license: MIT
 
