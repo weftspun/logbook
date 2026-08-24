@@ -1597,10 +1597,26 @@ the file before treating this as more than that."""
         )
         {
             # Two attributes on a 384-line schema that already exists. Pure CPU and parquet, eligible on every desk in the fleet, and the tightest estimate here because the file can be read before starting.
-            custom uniform token optimisticSize = "XS"
-            custom uniform token mostLikelySize = "XS"
-            custom uniform token pessimisticSize = "XS"
             custom bool gpuBound = 0
+            # COMPLETE 2026-08-24. Both attributes this task named now exist, so it carries
+            # `completed` and no sizes -- the same shape T01 takes. `visibility` was already
+            # int8 with its three states documented; `topology_id` landed in
+            # `anny-render-corpus#6` and turned out to be larger than a column.
+            #
+            # KEYPOINTS_2D KEYED ON bone_id, WHICH ASSERTS EVERY KEYPOINT FOLLOWS A BONE. The
+            # nose and both ears do not -- they have no bone and are fixed mesh vertices -- so
+            # three of the 104 points were not merely unvalidated, they were INEXPRESSIBLE.
+            # Nothing errored, because a schema that cannot say a thing does not complain about
+            # not saying it. Anchoring now lives in two satellite relations rather than nullable
+            # columns, `topologies` interns the vocabulary, and four red tests fire against a
+            # green fixture.
+            #
+            # WHAT COMPLETING THIS DOES NOT MEAN. Nothing writes these relations yet: the
+            # renderer emits npz, json and png rather than parquet. That is T02's output format,
+            # the same boundary T04 already records for `edited_renders`. The schema is finished
+            # and the corpus still cannot be written to it, which is a fact about T02 and not a
+            # reason to leave this open.
+            custom bool completed = 1
             custom int order = 6
             custom uniform token state = "build"
             custom string title = "visibility int8, and topology_id as a foreign key"
