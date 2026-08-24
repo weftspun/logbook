@@ -118,11 +118,28 @@ references:
       ValueError: 'base_ew_add6' is not in list. So there is a size limit between
       3 and 8 terms, and it is a graph-shape limit rather than an operator one.
 
-      UNEXPLAINED, and recorded rather than smoothed over: the fanned form also
-      disagrees with Nx in the compiler's own FLOAT emulation, by 0.073750 per
-      hinge exactly -- 0.147500 at two, 0.221250 at three. The chained form is
-      exact in float. A float-path disagreement that scales with fan-out is not
-      quantization and has no explanation here yet.
+      WITHDRAWN, one commit after it was written: a claim here said the fanned
+      hinge form disagrees with the compiler's own float emulation by 0.073750
+      per hinge, and offered it as unexplained. It is explained, and it is not
+      the compiler. Recomputing the same expression entirely in Nx, with nothing
+      compiled, reproduces the error to six decimals -- 1.284628, 0.595394,
+      0.245243, 0.099879 across four fits, identical either way. The hinge sum
+      was misconstructed: the coefficient at knot k must be slopes[k] minus
+      slopes[k-1], and a zip chain had misaligned slopes against knots. The
+      compiler was faithfully computing bad arithmetic.
+
+      Corrected, the fit improves an order of magnitude -- 1.284628 to 0.109919
+      at three segments -- but four segments still fits WORSE than three, so the
+      construction is still wrong and no number from it should be relied on. What
+      survives is only the structural result: hinge terms compile at small counts
+      and do not at eight or more, which was measured on graph shape rather than
+      on any fit being correct.
+
+      The lesson is the reason this paragraph stays rather than being deleted. A
+      discrepancy that scales linearly with a parameter looks like a hardware
+      story and is much more often an indexing bug, and it was reported as the
+      former before the cheap control -- run the same arithmetic with no compiler
+      in the path -- had been done.
     repository-code: "https://github.com/tinygrad/tinygrad"
     license: MIT
   - type: software
