@@ -124,6 +124,38 @@ def rfd_text():
 DEVICES = "/Rfd107a/Devices"
 
 
+def size_scale(stage):
+    """The size vocabulary and its points, read out of the stage rather than restated here.
+
+    Same rule `check-rfd-structure.py` follows for RFD 1000's state list: the document owns the
+    list and the gate reads it, so the two cannot disagree. A scale hard-coded here would be a
+    second place for it to live.
+    """
+    data = stage.GetRootLayer().customLayerData
+    return dict(zip(data["sizeVocabulary"], data["sizePoints"]))
+
+
+def human_span(hours):
+    """A projection, said the way a person would say it.
+
+    CLAUDE.md pairs every physical measurement with a household object because "4.3 mm" does not
+    tell a reader whether an error matters. A wall-clock projection has the same problem in the
+    other direction: "16.2 h" invites a precision the estimate behind it never had. So a
+    RECORD stays SI -- 73.00 ms/image is an instrument reading and keeps its decimals -- and a
+    PROJECTION gets a span, which is the same move as the penny and the soda can.
+
+    Buckets deliberately do not discriminate finely. Two configurations that both land on "an
+    afternoon" are not being claimed equal; they are being claimed indistinguishable at the
+    resolution a plan can act on. The ms/image row is where the difference lives.
+    """
+    for limit, span in ((0.5, "half an hour"), (1.5, "about an hour"), (4, "an afternoon"),
+                        (10, "a working day"), (20, "overnight"), (60, "a long weekend"),
+                        (200, "a working week")):
+        if hours < limit:
+            return span
+    return "a month of wall-clock"
+
+
 def check_devices(stage, failures):
     """Re-derive every peak rate rather than trusting the transcription.
 
@@ -171,17 +203,30 @@ def pert(stage, devices, failures, text):
     quietly shorten the path, which is the same shape as a silent skip reading like a pass.
     """
     plan = stage.GetPrimAtPath(PLAN)
-    te, var, deps, gpu = {}, {}, {}, {}
+    scale = size_scale(stage)
+    te, var, deps, gpu, done = {}, {}, {}, {}, []
     for task in plan.GetChildren():
         n = task.GetName()
-        vals = [task.GetAttribute(k).Get()
-                for k in ("optimisticDays", "mostLikelyDays", "pessimisticDays")]
-        if any(v is None for v in vals):
-            failures.append(f"{n}: no PERT durations, so the reranked path cannot include it")
+        if task.GetAttribute("completed").Get():
+            # Counted and named, never quietly folded in as a zero.
+            done.append(n)
+            te[n] = var[n] = 0.0
+            gpu[n] = False
+            deps[n] = [d.name for d in task.GetRelationship("dependsOn").GetTargets()]
+            continue
+        toks = [task.GetAttribute(k).Get()
+                for k in ("optimisticSize", "mostLikelySize", "pessimisticSize")]
+        if any(v is None for v in toks):
+            failures.append(f"{n}: no sizes, so the reranked path cannot include it")
             return None
-        o, m, pe = vals
+        bad = [v for v in toks if v not in scale]
+        if bad:
+            failures.append(f"{n}: size(s) {bad} outside the vocabulary {sorted(scale)}")
+            return None
+        o, m, pe = (scale[v] for v in toks)
         if not (o <= m <= pe):
-            failures.append(f"{n}: durations are not ordered, {o} <= {m} <= {pe} is false")
+            failures.append(
+                f"{n}: sizes are not ordered, {toks[0]} <= {toks[1]} <= {toks[2]} is false")
             return None
         te[n] = (o + 4 * m + pe) / 6.0
         var[n] = ((pe - o) / 6.0) ** 2
@@ -226,11 +271,12 @@ def pert(stage, devices, failures, text):
     contended = sorted([n for n in te if gpu[n]], key=lambda n: -te[n])
     contention = sum(te[n] for n in contended)
 
-    print(f"  ok   reranked path: {finish:.1f} engineering days over {len(chain)} tasks, "
-          f"heaviest {heaviest} at {te[heaviest]:.1f} d "
-          f"({te[heaviest] / finish * 100:.0f}% of the path)")
-    print(f"  ok   contention: {len(contended)} gpuBound task(s) sum to {contention:.1f} d on "
-          f"{len(live_gpu)} live bf16 card(s) -- {', '.join(live_gpu) or 'none'}")
+    # POINTS, NOT DAYS. They order tasks against each other and convert to no calendar.
+    print(f"  ok   reranked path: {finish:.1f} size points over {len(chain)} tasks, "
+          f"heaviest {heaviest} at {te[heaviest]:.1f} "
+          f"({te[heaviest] / finish * 100:.0f}% of the path); {len(done)} complete")
+    print(f"  ok   contention: {len(contended)} gpuBound task(s) sum to {contention:.1f} points "
+          f"on {len(live_gpu)} live bf16 card(s) -- {', '.join(live_gpu) or 'none'}")
 
     # THE LEVER, PRICED RATHER THAN ARGUED. The 4090 sits in the stage with `pluggedIn = 0`, so
     # what it is worth is arithmetic: scale every gpuBound task by the ratio of derived peak
@@ -246,10 +292,10 @@ def pert(stage, devices, failures, text):
             s = max([f2[d] for d in deps[n]], default=0.0)
             f2[n] = s + (te[n] * ratio if gpu[n] else te[n])
         saved = finish - max(f2.values())
-        print(f"  ok   plugging in the unplugged card: {max(f2.values()):.1f} d, "
-              f"{saved:.1f} d saved, a RANKING and not a budget")
+        print(f"  ok   plugging in the unplugged card: {max(f2.values()):.1f} points, "
+              f"{saved:.1f} saved ({saved / finish * 100:.0f}%), a RANKING and not a budget")
 
-    want = f"{finish:.1f} engineering days"
+    want = f"{finish:.1f} size points"
     if text is not None and want not in text:
         failures.append(f"DETAILS.md does not state the reranked total: {want}")
     return {"finish": finish, "chain": chain, "te": te, "var": var, "slack": slack}
@@ -554,17 +600,22 @@ def self_test(path):
         rel = stage.GetPrimAtPath(f"{SHAPE}/L03_HeadsAreParallelOnOneQuery").GetRelationship("justifiedBy")
         rel.SetTargets([f"{FINDINGS}/F10_BodyAndSceneAreTwoLatents"])
 
-    def _pert_durations_missing(stage):
-        """Strip one task's durations. A path that silently drops it would be shorter and
-        would still print a number, which is the shape a silent skip always takes."""
+    def _pert_sizes_missing(stage):
+        """Strip one task's sizes. A path that silently drops it would be shorter and would
+        still print a number, which is the shape a silent skip always takes."""
         prim = stage.GetPrimAtPath(f"{PLAN}/T08_MaskedTraining")
-        for k in ("optimisticDays", "mostLikelyDays", "pessimisticDays"):
+        for k in ("optimisticSize", "mostLikelySize", "pessimisticSize"):
             prim.GetAttribute(k).Clear()
 
-    def _pert_durations_unordered(stage):
+    def _pert_sizes_unordered(stage):
         """Optimistic above pessimistic. TE still evaluates, so nothing downstream notices."""
         stage.GetPrimAtPath(f"{PLAN}/T05_StrengthWindow").GetAttribute(
-            "optimisticDays").Set(99)
+            "optimisticSize").Set("XL")
+
+    def _size_outside_vocabulary(stage):
+        """A size the scale does not define. Reading the vocabulary out of the stage is only
+        worth doing if something rejects a token that is not in it."""
+        stage.GetPrimAtPath(f"{PLAN}/T03_PbrBake").GetAttribute("mostLikelySize").Set("XXL")
 
     def _device_arithmetic_drifts(stage):
         """Move a clock and leave the teraflop figure behind it. This is the transcription
@@ -572,10 +623,10 @@ def self_test(path):
         stage.GetPrimAtPath(f"{DEVICES}/RTX3090").GetAttribute("clockGhz").Set(2.9)
 
     def _reranked_total_drifts(stage):
-        """Lengthen the heaviest task. The stage then says a total DETAILS.md does not."""
-        prim = stage.GetPrimAtPath(f"{PLAN}/T08_MaskedTraining")
-        prim.GetAttribute("mostLikelyDays").Set(40)
-        prim.GetAttribute("pessimisticDays").Set(60)
+        """Grow the heaviest task. The stage then says a total DETAILS.md does not."""
+        prim = stage.GetPrimAtPath(f"{PLAN}/T06_SchemaCompletion")
+        for k in ("optimisticSize", "mostLikelySize", "pessimisticSize"):
+            prim.GetAttribute(k).Set("XL")
 
     controls = [
         ("a component with no finding behind it", _unjustified_component),
@@ -586,8 +637,9 @@ def self_test(path):
         ("a task states no measurement", _drop_a_measurement),
         ("a state outside the vocabulary", _unknown_state),
         ("the last slack in the plan disappears", _slack_vanishes),
-        ("a task carries no PERT durations", _pert_durations_missing),
-        ("optimistic exceeds pessimistic", _pert_durations_unordered),
+        ("a task carries no sizes", _pert_sizes_missing),
+        ("optimistic exceeds pessimistic", _pert_sizes_unordered),
+        ("a size outside the vocabulary", _size_outside_vocabulary),
         ("a device clock drifts from its peak rate", _device_arithmetic_drifts),
         ("the reranked total drifts from DETAILS.md", _reranked_total_drifts),
     ]

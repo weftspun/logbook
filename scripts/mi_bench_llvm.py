@@ -281,6 +281,27 @@ def hours(ms, n=800_000):
     return n * (ms / 1000.0) / 3600.0
 
 
+def human_span(h):
+    """A projection said the way a person would say it, rather than to one decimal.
+
+    THE RECORD AND THE PROJECTION ARE DIFFERENT KINDS OF NUMBER AND GET DIFFERENT TREATMENT.
+    73.00 ms/image is an instrument reading and stays SI with its decimals. "800k images in
+    16.2 h" is that reading multiplied by a corpus size nobody has rendered yet, and the decimal
+    invites a confidence the multiplication does not carry. So it gets a span.
+
+    This is CLAUDE.md's household-object rule pointed the other way. A penny is attached to
+    4.3 mm because the millimetres alone do not say whether the error matters; a span replaces
+    the hours because the hours alone say more than is known. Both swap a bare number for
+    something a reader can act on.
+    """
+    for limit, span in ((0.5, "half an hour"), (1.5, "about an hour"), (4, "an afternoon"),
+                        (10, "a working day"), (20, "overnight"), (60, "a long weekend"),
+                        (200, "a working week")):
+        if h < limit:
+            return span
+    return "a month of wall-clock"
+
+
 def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("--worker", nargs=2, metavar=("VARIANT", "THREADS"))
@@ -336,17 +357,19 @@ def main(argv):
         print(f"\n  {len(skipped)} configuration(s) SKIPPED on the {a.deadline:.0f}s deadline, "
               f"named rather than dropped: {', '.join(skipped)}")
 
-    print("\n800k-image projection, one process, against the figures already recorded:\n")
-    print(f"    {'configuration':38s} {'ms/img':>10s} {'800k hours':>12s}")
+    print("\n800k-image projection, one process, against the figures already recorded.")
+    print("ms/image is the record and stays SI; the projection is a span.\n")
+    print(f"    {'configuration':38s} {'ms/img':>10s}   {'800k':<22s}")
     for r in rows:
         if "error" in r:
             continue
         label = f"{r['variant']}, {'1 thread' if r['threads'] == 1 else 'default threads'}"
-        print(f"    {label:38s} {r['update_bvh_ms']:10.2f} {hours(r['update_bvh_ms']):12.1f}")
-    print(f"    {'cuda_ad_rgb, default (4090, UNPLUGGED)':38s} {CUDA_4090_MS:10.2f} "
-          f"{hours(CUDA_4090_MS):12.1f}")
-    print(f"    {'torch soft_depth (original baseline)':38s} {TORCH_SOFT_MS:10.2f} "
-          f"{hours(TORCH_SOFT_MS):12.1f}")
+        print(f"    {label:38s} {r['update_bvh_ms']:10.2f}   "
+              f"{human_span(hours(r['update_bvh_ms'])):<22s}")
+    print(f"    {'cuda_ad_rgb, default (4090, UNPLUGGED)':38s} {CUDA_4090_MS:10.2f}   "
+          f"{human_span(hours(CUDA_4090_MS)):<22s}")
+    print(f"    {'torch soft_depth (original baseline)':38s} {TORCH_SOFT_MS:10.2f}   "
+          f"{human_span(hours(TORCH_SOFT_MS)):<22s}")
 
     # PROCESS-LEVEL SCALING, WHICH IS THE WHOLE POINT OF THE SHIPPING CONFIGURATION.
     #
@@ -379,7 +402,7 @@ def main(argv):
         agg = n / (per / 1000.0)
         base = base or agg
         print(f"    {n:2d} procs   {per:8.2f} ms/img each   {agg:7.2f} img/s aggregate   "
-              f"{agg/base:5.2f}x   800k = {800000/agg/3600:6.1f} h")
+              f"{agg/base:5.2f}x   800k = {human_span(800000 / agg / 3600)}")
 
     # THE NEGATIVE CONTROL, WITHOUT WHICH THE DETERMINISM COLUMN ABOVE IS DECORATION.
     #

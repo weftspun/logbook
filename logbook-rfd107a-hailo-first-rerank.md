@@ -29,19 +29,29 @@ on hardware no longer in the fleet, and rendered by a variant nobody had ever ti
 ANNY's face count, 1024², one sample per pixel — `mi_bench2.py`'s film, unchanged, because that
 entry's own lesson is that all of its controls ran at one scale and were wrong elsewhere.
 
-| configuration                   | ms/image | 800k projection      |
-| ------------------------------- | -------- | -------------------- |
-| `llvm_ad_rgb`, 1 thread         | 73.0     | 16.2 h, two shifts   |
-| `llvm_ad_rgb`, 1 thread, 8 proc | 77.9     | **2.2 h, one lunch** |
-| `llvm_ad_rgb`, default threads  | 11.8     | 2.6 h                |
-| `metal_ad_rgb`, default threads | 8.9      | 2.0 h                |
-| `cuda_ad_rgb` (4090, UNPLUGGED) | 1.79     | 0.4 h                |
-| torch `soft_depth` (baseline)   | 3451     | 766.9 h              |
+| configuration                   | ms/image | 800k projection       |
+| ------------------------------- | -------- | --------------------- |
+| `llvm_ad_rgb`, 1 thread         | 73.00    | overnight             |
+| `llvm_ad_rgb`, 1 thread, 8 proc | 77.88    | **an afternoon**      |
+| `llvm_ad_rgb`, default threads  | 11.79    | an afternoon          |
+| `metal_ad_rgb`, default threads | 8.86     | an afternoon          |
+| `cuda_ad_rgb` (4090, UNPLUGGED) | 1.79     | half an hour          |
+| torch `soft_depth` (baseline)   | 3451.00  | a month of wall-clock |
+
+**Two kinds of number, treated differently.** ms/image is a record — an instrument reading —
+and keeps its decimals in SI. The 800k column is that reading multiplied by a corpus nobody has
+rendered yet, and a decimal there invites a confidence the multiplication does not carry, so it
+gets a span. This is CLAUDE.md's household-object rule pointed the other way: a penny is
+attached to 4.3 mm because the millimetres alone do not say whether the error matters; a span
+replaces the hours because the hours alone say more than is known.
+
+Three rows land on "an afternoon" and are not thereby equal — they are indistinguishable at the
+resolution a plan can act on, and the ms/image column is where the difference lives.
 
 Determinism is **per-image**, not per-run. One thread makes one frame byte-identical and says
-nothing about how many frames are in flight, so eight single-threaded processes reach 2.2 hours
-without touching the guarantee. Twelve reach 1.9 hours at 8.92x, which is where the four
-efficiency cores stop paying.
+nothing about how many frames are in flight, so eight single-threaded processes reach an
+afternoon without touching the guarantee. Twelve get no further span at 8.83x, which is where
+the four efficiency cores stop paying.
 
 The whole corpus renders in an afternoon on the weakest device in the fleet. That settles what
 the ordering turned on: the renderer is not the expensive thing, and never was.
@@ -114,29 +124,37 @@ stops transferring to the next.
 detector's quantization is deployment — it reads frames somebody else rendered and emits
 keypoints, and nothing it produces enters a corpus. Only T05's generator path is bound.
 
-## The rerank: 38.8 engineering days, and 44% of it is one task
+## The rerank: 18.3 size points, and 41% of it is one task
 
-Computed by `check_rfd107a_plan.py` from the durations in the stage, by RFD 204d's formulas,
-and asserted against RFD 107a's own text so the two cannot drift.
+Computed by `check_rfd107a_plan.py` from the sizes in the stage, by RFD 204d's formulas, and
+asserted against RFD 107a's own text so the two cannot drift.
+
+**Sizes rather than days, and the swap is an admission.** The first pass at this entry carried
+optimistic, likely and pessimistic figures in engineering days and reported "38.8 engineering
+days". Not one of those was measured — they were judgement, and a decimal point made them read
+as something else. A t-shirt size cannot be mistaken for a calendar, which is the whole reason
+to use one. The spread is kept, because it carried a real signal: T08's pessimistic sits four
+times its optimistic, and that is a different fact from T08 merely being large. Points are
+Fibonacci and relative — they order tasks against each other and convert to no duration at all.
 
 **The chain is the same six tasks the unit-duration reading named.** That is the least
 interesting thing about it. What moves is the weight:
 
-- **T08 masked training is 17.2 days, 44% of the path.** One task is nearly half the project
-  and no resequencing touches it.
-- **T02 keeps its position and loses its cushion** — slack falls from a full layer to 0.2 days.
-  The renderer is co-critical rather than comfortable, despite the render itself being an
-  afternoon.
-- **T06 gains slack rather than losing it**: 11.2 days, and it is the one outstanding task that
-  runs on any desk in the fleet.
+- **T08 masked training is 7.5 points, 41% of the path.** One task is most of the project and no
+  resequencing touches it.
+- **T02 keeps its position and loses its cushion** — slack falls from a full layer to 0.3. The
+  renderer is co-critical rather than comfortable, despite the render itself being an afternoon.
+- **T06 gains slack rather than losing it**: 5.7, more than five times its own size, and it is
+  the one outstanding task that runs on any desk in the fleet.
 
 **The bottleneck is a device, and the graph cannot express it.** T05, T07 and T08 are all
 `gpuBound` and all want the one plugged-in bf16 card, because condition 5 forbids the quantised
-alternative for anything writing corpus data. Their expected durations sum to **28.2 days on a
-single RTX 3090** — a serial floor that no dependency edge describes.
+alternative for anything writing corpus data. Their expected sizes sum to **13.0 of the 18.3
+points — 71% of the path — on a single RTX 3090**, a serial floor that no dependency edge
+describes.
 
-So the largest lever is not a resequencing. Plugging in the 4090 brings the path to **25.2
-days, saving 13.6**, by scaling the `gpuBound` tasks on derived peak rate. That is a ranking
+So the largest lever is not a resequencing. Plugging in the 4090 brings the path to **11.9
+points, cutting 35% off it**, by scaling the `gpuBound` tasks on derived peak rate. That is a ranking
 and not a budget, in the sense `logbook-edge-npu-and-the-anny-forward.md` set: it assumes those
 tasks are compute-bound and perfectly portable, and neither was measured. It still costs a
 cable.
