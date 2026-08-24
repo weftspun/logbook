@@ -623,8 +623,18 @@ def self_test(path):
         stage.GetPrimAtPath(f"{DEVICES}/RTX3090").GetAttribute("clockGhz").Set(2.9)
 
     def _reranked_total_drifts(stage):
-        """Grow the heaviest task. The stage then says a total DETAILS.md does not."""
-        prim = stage.GetPrimAtPath(f"{PLAN}/T06_SchemaCompletion")
+        """Grow a task ON the critical path. The stage then states a total DETAILS.md does not.
+
+        THIS CONTROL STOPPED FIRING ONCE AND THE REASON IS WORTH KEEPING. It grew T06, chosen
+        when T06 had 5.7 slack and XL would have swamped it. Correcting the render measurement
+        moved T02 onto the critical path, which pushed T06's slack to 7.3 -- just past the 7
+        points XL adds -- so the mutation stopped changing the answer and the control went
+        green while proving nothing.
+
+        A mutation sized against a graph is a mutation that expires when the graph moves. T10 is
+        terminal and on the path by construction, so growing it always moves the finish, whatever
+        happens upstream."""
+        prim = stage.GetPrimAtPath(f"{PLAN}/T10_Evaluate")
         for k in ("optimisticSize", "mostLikelySize", "pessimisticSize"):
             prim.GetAttribute(k).Set("XL")
 

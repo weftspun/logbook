@@ -38,9 +38,10 @@ Usage:
 
 import argparse
 import hashlib
-import os
 import json
 import math
+import os
+import pathlib
 import subprocess
 import sys
 import time
@@ -54,6 +55,16 @@ W = H = 1024
 FOV = 40.0
 SPP = 1
 ITERS = 30
+
+# `render_view.py:235` defaults to this, and it is the sample count the corpus is rendered at.
+SHIPPING_SPP = 128
+
+# PINNED, BECAUSE "PROBABLY THE DEFAULT" IS NOT A MEASUREMENT. `render_view.py:155` passes
+# seed=0 explicitly and this file was calling `mi.render` without one. Mitsuba's default is also
+# 0, so this should change nothing -- but the Metal digests differ across processes, and a seed
+# that varied would explain that without any film-accumulation story at all. Pinning it is what
+# separates the two, and it decides whether a 60x speed-up is available.
+SEED = 0
 
 # What the proxy is matched against. ANNY at `base_mesh='makehuman'` with
 # `remove_unattached_vertices=False`, the configuration `mi_bench2.py` instantiates.
@@ -117,8 +128,33 @@ def proxy_mesh(target_verts=ANNY_VERTS, target_faces=ANNY_FACES):
     return verts.astype(np.float64), np.asarray(faces, dtype=np.int64)
 
 
-def build_scene(mi, verts, faces):
-    """`mi_bench2.py`'s scene: aov integrator, box filter, independent sampler, one sample."""
+def build_scene(mi, verts, faces, film="bench", spp=SPP):
+    """One of two films, and the difference between them turned out to be the whole finding.
+
+    `bench` is `mi_bench2.py`'s: an aov integrator over position and depth, a box
+    reconstruction filter, one sample per pixel. That is what this script measured first, and
+    it is a DEPTH PASS.
+
+    `shipping` is `render_view.py`'s, which is what actually renders the corpus: a `path`
+    integrator at max_depth 6, a GAUSSIAN reconstruction filter, 128 samples per pixel, a
+    principled skin BSDF, a constant world emitter and a point key light.
+
+    THE FIRST VERSION OF THIS FILE HAD ONLY `bench` AND CALLED THE RESULT THE CORPUS RENDER.
+    That was wrong twice, and the second error hid the first:
+
+      * The TIMING was for a depth pass at one sample, projected as though it were the frame
+        the corpus keeps. `render_view.py` path-traces at 128 and then runs a SECOND path-traced
+        pass for the matte, so the real cost is not the same quantity.
+      * The DETERMINISM check could not fail, and three independent properties of `bench` each
+        guarantee that. An aov position/depth is deterministic geometry with no Monte Carlo
+        noise; a box filter puts every sample in exactly one pixel, so nothing splats across a
+        thread's block boundary; and at one sample per pixel there is no accumulation ORDER to
+        vary, which is the mechanism `pixi.toml` names.
+
+    So a check reported `identical` on a film built such that it could not report anything else,
+    and it was pointed at the wrong renderer while doing it. PITFALLS 4 -- the convenient proxy
+    lies, and the proxy is always the one that is easy to read.
+    """
     mesh = mi.Mesh("body", vertex_count=verts.shape[0], face_count=faces.shape[0],
                    has_vertex_normals=False, has_vertex_texcoords=False)
     mp = mi.traverse(mesh)
@@ -130,25 +166,47 @@ def build_scene(mi, verts, faces):
     extent = float(np.linalg.norm(verts - centre, axis=1).max())
     off = np.array([0.0, 1.0, 0.25])
     eye = centre + off / np.linalg.norm(off) * extent * 3.0
-    scene = mi.load_dict({
-        "type": "scene",
-        "integrator": {"type": "aov", "aovs": "pos:position,t:depth"},
-        "sensor": {
-            "type": "perspective", "fov": FOV, "fov_axis": "x",
-            "to_world": mi.ScalarTransform4f().look_at(
-                origin=[float(x) for x in eye],
-                target=[float(x) for x in centre],
-                up=[0.0, 0.0, 1.0]),
-            "film": {"type": "hdrfilm", "width": W, "height": H,
-                     "rfilter": {"type": "box"}, "pixel_format": "rgba"},
-            "sampler": {"type": "independent", "sample_count": SPP},
-        },
-        "body": mesh,
-    })
+    look_at = mi.ScalarTransform4f().look_at(
+        origin=[float(x) for x in eye], target=[float(x) for x in centre], up=[0.0, 0.0, 1.0])
+
+    if film == "shipping":
+        # render_view.py:134-153, with its materials and lights. The geometry is still the
+        # proxy, so this measures the FILM and not the body.
+        scene = mi.load_dict({
+            "type": "scene",
+            "integrator": {"type": "path", "max_depth": 6},
+            "sensor": {
+                "type": "perspective", "fov": FOV, "fov_axis": "y", "to_world": look_at,
+                "film": {"type": "hdrfilm", "width": W, "height": H,
+                         "rfilter": {"type": "gaussian"}, "pixel_format": "rgb"},
+                "sampler": {"type": "independent", "sample_count": spp},
+            },
+            "body": mesh,
+            "bsdf_body": {"type": "ref", "id": "skin"},
+            "skin": {"type": "principled",
+                     "base_color": {"type": "rgb", "value": [0.76, 0.62, 0.54]},
+                     "roughness": 0.55, "metallic": 0.0},
+            "world": {"type": "constant", "radiance": {"type": "rgb", "value": 0.35}},
+            "key": {"type": "point",
+                    "position": [float(eye[0]) * 1.2, float(eye[1]) * 1.2, float(eye[2]) + 1.5],
+                    "intensity": {"type": "rgb", "value": 12.0}},
+        })
+    else:
+        scene = mi.load_dict({
+            "type": "scene",
+            "integrator": {"type": "aov", "aovs": "pos:position,t:depth"},
+            "sensor": {
+                "type": "perspective", "fov": FOV, "fov_axis": "x", "to_world": look_at,
+                "film": {"type": "hdrfilm", "width": W, "height": H,
+                         "rfilter": {"type": "box"}, "pixel_format": "rgba"},
+                "sampler": {"type": "independent", "sample_count": spp},
+            },
+            "body": mesh,
+        })
     return scene, mi.traverse(scene)
 
 
-def worker(variant, threads, spp=SPP):
+def worker(variant, threads, spp=SPP, film="bench", iters=None):
     """One measurement, in its own process. JSON on stdout, nothing else.
 
     A process each, for two reasons. Switching variants inside one interpreter leaves the
@@ -163,8 +221,12 @@ def worker(variant, threads, spp=SPP):
         # effect at all. Same call here rather than a second mechanism.
         dr.set_thread_count(threads)
 
+    # The shipping film is path-traced at 128 samples, so thirty iterations of it is not a
+    # benchmark, it is an afternoon. Fewer, and the count is reported rather than assumed.
+    iters = iters if iters is not None else (2 if film == "shipping" else ITERS)
+
     verts, faces = proxy_mesh()
-    scene, params = build_scene(mi, verts, faces)
+    scene, params = build_scene(mi, verts, faces, film, spp)
     vkey = [k for k in params.keys() if k.endswith("vertex_positions")][0]
 
     def timed(n, update):
@@ -174,12 +236,12 @@ def worker(variant, threads, spp=SPP):
             if update:
                 params[vkey] = mi.Float((verts + 0.0005 * i).astype(np.float32).reshape(-1))
                 params.update()
-            out = mi.render(scene, spp=spp)
+            out = mi.render(scene, spp=spp, seed=SEED)
             dr.eval(out)
         dr.sync_thread()
         return (time.time() - t0) / n
 
-    timed(3, False)  # warm the BVH and the JIT so the first frame is not the measurement
+    timed(1 if film == "shipping" else 3, False)  # warm the BVH and JIT off the measurement
 
     # Determinism, asked of every variant rather than only the ones already recorded. ONE
     # digest per process, compared by the caller ACROSS processes.
@@ -190,15 +252,17 @@ def worker(variant, threads, spp=SPP):
     # instrument: film accumulation order is what drifts, and two renders sharing one warm
     # thread pool and one scheduler are the case most likely to repeat it. A digest compared
     # across two fresh processes is the question worth asking.
-    img = np.array(mi.render(scene, spp=spp), dtype=np.float32)
+    img = np.array(mi.render(scene, spp=spp, seed=SEED), dtype=np.float32)
     digests = [hashlib.sha256(np.ascontiguousarray(img).tobytes()).hexdigest()]
 
     return {
         "variant": mi.variant(),
         "threads": threads or 0,
         "spp": spp,
-        "render_only_ms": timed(ITERS, False) * 1000.0,
-        "update_bvh_ms": timed(ITERS, True) * 1000.0,
+        "film": film,
+        "iters": iters,
+        "render_only_ms": timed(iters, False) * 1000.0,
+        "update_bvh_ms": timed(iters, True) * 1000.0,
         "sha256": digests[0],
         "verts": int(verts.shape[0]),
         "faces": int(faces.shape[0]),
@@ -217,13 +281,13 @@ WORKER_TIMEOUT_S = 300.0
 SWEEP_DEADLINE_S = 1800.0
 
 
-def run_worker(variant, threads, timeout=WORKER_TIMEOUT_S, spp=SPP):
+def run_worker(variant, threads, timeout=WORKER_TIMEOUT_S, spp=SPP, film="bench"):
     try:
         out = subprocess.run([sys.executable, __file__, "--worker", variant, str(threads),
-                              "--spp", str(spp)],
+                              "--spp", str(spp), "--film", film],
                              capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        return {"variant": variant, "threads": threads,
+        return {"variant": variant, "threads": threads, "film": film,
                 "error": f"TIMEOUT after {timeout:.0f}s -- killed, not waited on"}
     if out.returncode != 0:
         tail = out.stderr.strip().splitlines()[-1:] or ["no stderr"]
@@ -306,6 +370,9 @@ def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("--worker", nargs=2, metavar=("VARIANT", "THREADS"))
     ap.add_argument("--spp", type=int, default=SPP)
+    ap.add_argument("--film", choices=("bench", "shipping"), default="bench")
+    ap.add_argument("--results", default=str(pathlib.Path.home() / "Desktop"),
+                    help="directory for the machine-readable result record")
     ap.add_argument("--procs", default="1,2,4,8",
                     help="concurrent single-threaded processes to scale over")
     ap.add_argument("--worker-timeout", type=float, default=WORKER_TIMEOUT_S,
@@ -315,7 +382,7 @@ def main(argv):
     a = ap.parse_args(argv)
 
     if a.worker:
-        print(json.dumps(worker(a.worker[0], int(a.worker[1]), a.spp)))
+        print(json.dumps(worker(a.worker[0], int(a.worker[1]), a.spp, a.film)))
         return 0
 
     import mitsuba as mi
@@ -327,49 +394,59 @@ def main(argv):
     verts, faces = proxy_mesh()
     print(f"proxy geometry   {verts.shape[0]} verts, {faces.shape[0]} faces")
     print(f"ANNY, matched    {ANNY_VERTS} verts, {ANNY_FACES} faces")
-    print(f"film             {W}x{H}, spp {SPP}, {ITERS} iterations, aov integrator\n")
+    print(f"films            {W}x{H}; bench = aov/box/spp {SPP}; "
+          f"shipping = path d6/gaussian/spp {SHIPPING_SPP}\n")
 
-    plan = [("llvm_ad_rgb", 1), ("llvm_ad_rgb", 0)]
+    # BOTH FILMS, BECAUSE MEASURING ONLY THE CHEAP ONE IS HOW THIS SCRIPT WAS WRONG.
+    plan = [("llvm_ad_rgb", 1, "bench", SPP), ("llvm_ad_rgb", 0, "bench", SPP)]
     if "metal_ad_rgb" in available:
-        plan.append(("metal_ad_rgb", 0))
+        plan.append(("metal_ad_rgb", 0, "bench", SPP))
+    plan += [("llvm_ad_rgb", 1, "shipping", SHIPPING_SPP),
+             ("llvm_ad_rgb", 0, "shipping", SHIPPING_SPP)]
 
     started = time.time()
     skipped = []
     rows = []
-    for variant, threads in plan:
+    for variant, threads, film, spp in plan:
         if time.time() - started > a.deadline:
-            skipped.append(f"{variant}/{threads or 'default'}")
+            skipped.append(f"{variant}/{threads or 'default'}/{film}")
             continue
         # Twice, in two fresh processes, so the sha256 comparison spans process boundaries
         # rather than two renders sharing one warm thread pool.
-        r = run_worker(variant, threads, a.worker_timeout)
-        r2 = run_worker(variant, threads, a.worker_timeout) if "error" not in r else r
+        r = run_worker(variant, threads, a.worker_timeout, spp, film)
+        r2 = (run_worker(variant, threads, a.worker_timeout, spp, film)
+              if "error" not in r else r)
         rows.append(r)
         if "error" in r:
-            print(f"  FAIL {variant} threads={threads}: {r['error']}")
+            print(f"  FAIL {variant} threads={threads} film={film}: {r['error']}")
             continue
         r["identical"] = ("error" not in r2) and r["sha256"] == r2["sha256"]
-        label = f"{r['variant']}, {'1 thread' if r['threads'] == 1 else 'default threads'}"
+        r["label"] = (f"{r['variant']}, {'1 thread' if r['threads'] == 1 else 'default threads'}"
+                      f", {film}")
         det = "identical" if r["identical"] else "DIFFERS"
-        print(f"{label:34s} render only {r['render_only_ms']:8.2f} ms   "
-              f"+update/BVH {r['update_bvh_ms']:8.2f} ms   two processes {det}")
+        print(f"{r['label']:44s} render only {r['render_only_ms']:9.2f} ms   "
+              f"+update/BVH {r['update_bvh_ms']:9.2f} ms   {det}")
     if skipped:
         print(f"\n  {len(skipped)} configuration(s) SKIPPED on the {a.deadline:.0f}s deadline, "
               f"named rather than dropped: {', '.join(skipped)}")
 
     print("\n800k-image projection, one process, against the figures already recorded.")
     print("ms/image is the record and stays SI; the projection is a span.\n")
-    print(f"    {'configuration':38s} {'ms/img':>10s}   {'800k':<22s}")
+    print(f"    {'configuration':46s} {'ms/img':>10s}   {'800k':<22s}")
     for r in rows:
         if "error" in r:
             continue
-        label = f"{r['variant']}, {'1 thread' if r['threads'] == 1 else 'default threads'}"
-        print(f"    {label:38s} {r['update_bvh_ms']:10.2f}   "
+        print(f"    {r['label']:46s} {r['update_bvh_ms']:10.2f}   "
               f"{human_span(hours(r['update_bvh_ms'])):<22s}")
-    print(f"    {'cuda_ad_rgb, default (4090, UNPLUGGED)':38s} {CUDA_4090_MS:10.2f}   "
+    print(f"    {'cuda_ad_rgb, default, bench (4090, OFF)':46s} {CUDA_4090_MS:10.2f}   "
           f"{human_span(hours(CUDA_4090_MS)):<22s}")
-    print(f"    {'torch soft_depth (original baseline)':38s} {TORCH_SOFT_MS:10.2f}   "
+    print(f"    {'torch soft_depth, bench (original floor)':46s} {TORCH_SOFT_MS:10.2f}   "
           f"{human_span(hours(TORCH_SOFT_MS)):<22s}")
+    print("\n    THE TWO FILMS ARE NOT COMPARABLE AND THE ROWS ARE LABELLED SO NOBODY READS")
+    print("    THEM AS IF THEY WERE. The 4090 figure and the torch floor are BENCH-film")
+    print("    numbers -- a depth pass at one sample. `render_view.py` renders the corpus on")
+    print("    the shipping film, and no 4090 measurement of that exists. Comparing a shipping")
+    print("    row against the 1.79 ms is comparing a lit path trace with a depth probe.")
 
     # PROCESS-LEVEL SCALING, WHICH IS THE WHOLE POINT OF THE SHIPPING CONFIGURATION.
     #
@@ -417,37 +494,76 @@ def main(argv):
     # a contradiction. Raising spp is what separates those two readings: if the digests diverge
     # as spp climbs, this check works and the recorded drift is an spp>1 phenomenon; if they
     # never diverge at any spp, this check cannot fail and proves nothing.
-    print("\ndeterminism against sample count, llvm_ad_rgb at default threads:\n")
-    for spp in (1, 4, 16, 64):
-        if time.time() - started > a.deadline:
-            print(f"    spp {spp:3d}   SKIPPED on the deadline, named rather than dropped")
-            continue
-        d1 = run_worker("llvm_ad_rgb", 0, a.worker_timeout, spp)
-        d2 = run_worker("llvm_ad_rgb", 0, a.worker_timeout, spp)
-        if "error" in d1 or "error" in d2:
-            print(f"    spp {spp:3d}   FAIL {d1.get('error') or d2.get('error')}")
-            continue
-        same = d1["sha256"] == d2["sha256"]
-        print(f"    spp {spp:3d}   {d1['update_bvh_ms']:8.2f} ms/img   two processes "
-              f"{'identical' if same else 'DIFFER -- drift reproduced'}")
-    print("\n    THE CONTROL DID NOT FIRE, AND THAT IS THE RESULT.")
-    print("    No spp up to 64 reproduced the drift `pixi.toml` records, so nothing here has")
-    print("    shown this check CAN fail -- which makes the `identical` column above")
-    print("    decoration rather than evidence. PITFALLS 2: a check that never fails certifies")
-    print("    whatever it is pointed at. Two readings survive and this run does not separate")
-    print("    them: the recorded drift may be win-64/linux-64 only, unmeasured on osx-arm64,")
-    print("    or this instrument may be blind to it.")
+    print("\ndeterminism, two fresh processes per row, both films:\n")
+    print(f"    {'film':10s} {'integrator':12s} {'filter':9s} {'spp':>4s}  "
+          f"{'ms/img':>10s}  verdict")
+    det = []
+    for film, spps in (("bench", (1, 4, 16, 64)), ("shipping", (16, 128))):
+        for spp in spps:
+            if time.time() - started > a.deadline:
+                print(f"    {film:10s} SKIPPED at spp {spp} on the deadline, named not dropped")
+                continue
+            d1 = run_worker("llvm_ad_rgb", 0, a.worker_timeout, spp, film)
+            d2 = run_worker("llvm_ad_rgb", 0, a.worker_timeout, spp, film)
+            if "error" in d1 or "error" in d2:
+                print(f"    {film:10s} spp {spp:3d}   FAIL "
+                      f"{d1.get('error') or d2.get('error')}")
+                continue
+            same = d1["sha256"] == d2["sha256"]
+            det.append((film, spp, same))
+            integ, filt = (("path", "gaussian") if film == "shipping" else ("aov", "box"))
+            print(f"    {film:10s} {integ:12s} {filt:9s} {spp:4d}  {d1['update_bvh_ms']:10.2f}  "
+                  f"{'identical' if same else 'DIFFER -- drift reproduced'}")
+
+    fired = [r for r in det if not r[2]]
     print("")
-    print("    So the 1-thread constraint STANDS. It is not relaxed on the strength of a check")
-    print("    with no firing control, and it does not need to be: the process-scaling rows")
-    print("    above reach the same throughput with every frame single-threaded, which is the")
-    print("    configuration the determinism measurement actually covers.")
+    if fired:
+        print("    THE CONTROL FIRES, AND IT TOOK THE RIGHT FILM TO DO IT.")
+        print(f"    {len(fired)} of {len(det)} configurations differ across two processes, all "
+              "of them on the")
+        print("    SHIPPING film. That is what `pixi.toml` recorded, reproduced here, and it")
+        print("    retires the earlier reading in this file that no spp reproduced it: the")
+        print("    variable was never spp, it was the film. `bench` cannot drift for three")
+        print("    independent reasons -- an aov integrator is deterministic geometry, a box")
+        print("    filter puts every sample in one pixel so nothing splats across a thread's")
+        print("    block boundary, and one sample per pixel has no accumulation order at all.")
+        print("")
+        print("    So the `identical` rows on `bench` were true and worthless, and the earlier")
+        print("    conclusion drawn from them -- that metal_ad_rgb might be a corpus renderer --")
+        print("    rested on a film that could not have told us otherwise.")
+    else:
+        print("    THE CONTROL DID NOT FIRE, AND THAT IS THE RESULT.")
+        print("    Nothing here has shown this check CAN fail, which makes the verdict column")
+        print("    decoration rather than evidence. PITFALLS 2: a check that never fails")
+        print("    certifies whatever it is pointed at.")
+    print("")
+    print("    The 1-thread constraint STANDS either way. The process-scaling rows reach the")
+    print("    same throughput with every frame single-threaded, which is the configuration")
+    print("    the determinism measurement actually covers.")
     print("")
     print("    Two processes per row. A two-sample comparison resolves only drift that recurs;")
     print("    a defect appearing in one run of a hundred is below what this sees.")
 
     print("\nEvery figure is this desk only. The 3090 and the 4090 are other machines and "
           "nothing here was measured on them.")
+
+    # THE RECORD, WRITTEN WHERE A PERSON WILL FIND IT. Stdout scrolls away; a file does not.
+    out = pathlib.Path(a.results).expanduser()
+    out.mkdir(parents=True, exist_ok=True)
+    dest = out / "mi_bench_llvm-results.json"
+    dest.write_text(json.dumps({
+        "machine": host,
+        "film_bench": {"integrator": "aov", "rfilter": "box", "spp": SPP,
+                       "source": "mi_bench2.py"},
+        "film_shipping": {"integrator": "path max_depth 6", "rfilter": "gaussian",
+                          "spp": 128, "source": "render_view.py:134-153"},
+        "variants": rows,
+        "determinism": [{"film": f, "spp": s, "identical": i} for f, s, i in det],
+        "control_fired": bool(fired),
+        "note": ("ms/img are records and stay SI. 800k projections are spans, not decimals. "
+                 "Nothing here was measured on the 3090 or the 4090."),
+    }, indent=2))
+    print(f"\nresults written to {dest}")
     return 0
 
 

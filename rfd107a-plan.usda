@@ -153,11 +153,33 @@ the fleet and the smallest compute: 5.2x below the 3090 on derived FP32, no tens
 NO NATIVE bf16 -- so running a generator at its published precision here is emulation, which is
 a correctness question before it is a speed one and is unmeasured either way.
 
-WHAT IT IS ACTUALLY FOR, MEASURED RATHER THAN ASSUMED. The corpus render's shipping variant is
-`llvm_ad_rgb` at one thread, which is a CPU path, so it neither needs nor contends for a GPU.
-Measured here at 73.00 ms/image against ANNY's face count, 16.2 hours over 800k in one process
-and 2.2 hours across eight -- determinism is per-image, so processes parallelise it without
-touching the guarantee. That is not a weak node, it is the corpus renderer."""
+RETRACTED: "THAT IS NOT A WEAK NODE, IT IS THE CORPUS RENDERER." This entry read that the
+shipping render was measured at 73.00 ms/image, 16.2 hours over 800k in one process and 2.2
+across eight, and concluded the renderer was cheap. The 73 ms was a DEPTH PASS -- an aov
+integrator, box filter, one sample -- and `render_view.py` renders the corpus with a path
+integrator at max_depth 6, a gaussian filter and 128 samples, then a second pass for the matte.
+On that film the same variant measures 32,592 ms/image, 447x more, which is roughly a month of
+wall-clock over 800k with every core busy. The renderer is expensive here. `scripts/mi_bench_llvm.py`
+carries both films so the mistake cannot be repeated silently.
+
+THE DERIVED PEAK IS NOW MEASURED, AND IT HOLDS. `scripts/gpu_tops.py` runs dense GEMM at
+2*n^3 flops, synchronised, best-of-8: **5.71 TFLOP/s fp32, 84.0% of the 6.8 derived above**. So
+the derivation is sound and the ASSUMED clock is not doing damage. GEMM is the friendliest shape
+a device sees, so read it as an upper bound rather than a promise.
+
+TWO MEASUREMENTS THAT CHANGED WHAT THIS ROW CLAIMS:
+
+  fp16 reaches 6.20 TFLOP/s -- only 1.09x fp32, not the 2x a half-precision pipeline implies.
+  bf16 reaches 2.96 TFLOP/s, 0.48x fp16 and BELOW fp32, which is what `bf16Native = 0` predicts
+  and is now measured rather than asserted.
+  The CPU reaches 2.19 TFLOP/s, so this GPU is worth only 2.6x its own CPU on the friendliest
+  shape there is.
+
+That last figure explains a result elsewhere. `gate_onnx_device.py` was hardcoded to
+`CPUExecutionProvider`; run against CoreML it measures 1685.1 ms at 576 against the CPU's 476.4
+-- 0.28x, nearly four times SLOWER -- and 4.924e-03 against the port's 4.2e-03 bound, so it is
+slower AND outside tolerance. With only 2.6x available before transfer costs, a partitioned
+graph handed back and forth loses. The Neural Engine claim below is corrected on the same run."""
         )
         {
             custom uniform token kind = "gpu"
@@ -173,6 +195,18 @@ touching the guarantee. That is not a weak node, it is the corpus renderer."""
             custom bool clockAssumed = 1
             custom int cpuPerformanceCores = 8
             custom int cpuEfficiencyCores = 4
+            # Measured by `scripts/gpu_tops.py`, dense GEMM, best-of-8, synchronised.
+            custom float measuredFp32Tflops = 5.71
+            custom float measuredFp16Tflops = 6.20
+            custom float measuredBf16Tflops = 2.96
+            custom float measuredCpuFp32Tflops = 2.19
+            custom float measuredFractionOfDerived = 0.84
+            # ONNX Runtime's CoreML provider reaches the 15.8 TOPS Neural Engine, so this part
+            # is NOT unreachable outside PyTorch as an earlier revision of this scope claimed.
+            # It was reachable and untried. Tried now: slower than the CPU on this model, and
+            # outside the numeric bound. Reachable and unsuitable are different facts.
+            custom bool neuralEngineReachableViaOnnx = 1
+            custom bool neuralEngineUsefulForBackbone = 0
         }
 
         def "Hailo10H" (
@@ -1295,10 +1329,16 @@ ARKit coefficients, the hm08 masks and the camera parameters, per frame, in the 
 below. Reading the two against each other is the next thing to do here, and it is cheap."""
         )
         {
-            # Engineering, not compute. The render itself is measured at 2.2 hours over 800k across eight processes on the M2 Pro, so the outstanding work is the ARKit coefficients, the hm08 masks and the parquet writer rather than throughput.
-            custom uniform token optimisticSize = "S"
-            custom uniform token mostLikelySize = "M"
-            custom uniform token pessimisticSize = "L"
+            # RESIZED FROM S/M/L, AND THE REASON IS A RETRACTED MEASUREMENT. This note read
+            # "engineering, not compute -- the render itself is measured at 2.2 hours over 800k
+            # across eight processes, so the outstanding work is the ARKit coefficients, the hm08
+            # masks and the parquet writer rather than throughput." That was the DEPTH PASS. On
+            # `render_view.py`'s actual film the same variant is 32,592 ms/image, 447x more, and
+            # 800k frames is roughly a month of wall-clock with every core busy. Throughput is
+            # the work, alongside the engineering, so the pessimistic case grows the most.
+            custom uniform token optimisticSize = "M"
+            custom uniform token mostLikelySize = "L"
+            custom uniform token pessimisticSize = "XL"
             custom bool gpuBound = 0
             custom int order = 2
             custom uniform token state = "build"

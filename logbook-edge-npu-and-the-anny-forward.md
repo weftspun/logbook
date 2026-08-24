@@ -1,6 +1,26 @@
 # Logbook: what an edge NPU takes, and what the ANNY forward will not export
 
-Apparatus: `rf-detr-cpp/scripts/gate_onnx_device.py` (macOS, no accelerator),
+RETRACTED 2026-08-24: "MACOS, NO ACCELERATOR" WAS A PROPERTY OF LINE 156, NOT OF THE MACHINE.
+`gate_onnx_device.py` hardcoded `providers=["CPUExecutionProvider"]`, so every figure below that
+carries "on the Mac" is a CPU figure by construction rather than by measurement. The numbers
+stand for what they measured; what is withdrawn is reading them as what this machine can do.
+A hardcoded backend list turns a capability question into a tautology.
+
+The provider list now offers everything onnxruntime has, and the answer is not the one the
+retraction implies is owed. At 576 with `num_windows=1`:
+
+    CPUExecutionProvider       476.4 ms    max|diff| 4.470e-06     1.00x
+    CoreMLExecutionProvider   1685.1 ms    max|diff| 4.924e-03     0.28x
+
+CoreML is nearly four times SLOWER and lands outside the port's own 4.2e-03 bound, so it fails
+on accuracy as well as losing on speed. The mechanism is likely partitioning -- CoreML hands
+unsupported nodes back to the CPU, and `logbook-rfd107a-hailo-first-rerank.md` measures why that
+cannot pay here: this GPU is worth only 2.6x its own CPU on dense GEMM, so the transfers cost
+more than the acceleration returns. The 15.8 TOPS Neural Engine is REACHABLE through that
+provider and is not useful for this model; reachable and unsuitable are different facts, and the
+plan's Devices scope previously asserted the first one wrongly.
+
+Apparatus: `rf-detr-cpp/scripts/gate_onnx_device.py` (macOS, all available ONNX providers),
 `rf-detr-cpp/scripts/gate_dfc_parse.py` and `deploy/hailo-dfc/` (Hailo Dataflow Compiler
 5.3.0 on a Fly machine, since the wheel is `linux_x86_64` only),
 `rf-detr-cpp/scripts/fold_static_tile.py`. ANNY measurements use `anny` 0.6.0 from PyPI on

@@ -24,6 +24,80 @@ on hardware no longer in the fleet, and rendered by a variant nobody had ever ti
 
 **Retracted as a corpus-render estimate.** It remains correct about what it measured.
 
+## RETRACTED 2026-08-24: the render table above is a depth pass, not the corpus render
+
+The section below stands as written because knowing which road was taken is worth more than a
+tidy document. Two of its claims are withdrawn.
+
+**"The whole corpus renders in an afternoon" and "the renderer is not the expensive thing" are
+wrong by 447x.** The film measured was `mi_bench2.py`'s: an `aov` integrator over position and
+depth, a box filter, one sample per pixel. `render_view.py:134-153` renders the corpus with a
+`path` integrator at max_depth 6, a **gaussian** filter and **128** samples, and then runs a
+second path-traced pass for the matte. Same variant, same geometry, the two films:
+
+| film     | integrator     | filter   | spp | `llvm_ad_rgb` 1 thread | 800k                  |
+| -------- | -------------- | -------- | --- | ---------------------- | --------------------- |
+| bench    | aov pos/depth  | box      | 1   | 73.00 ms               | overnight             |
+| shipping | path max_dep 6 | gaussian | 128 | **32,592.00 ms**       | a month of wall-clock |
+
+**The determinism control was blind, and it was never about samples per pixel.** It was the
+film. `bench` cannot drift for three independent reasons: an aov position/depth is deterministic
+geometry with no Monte Carlo noise, a box filter puts every sample in exactly one pixel so
+nothing splats across a thread's block boundary, and one sample has no accumulation order to
+vary. The `identical` column was true and worthless — PITFALLS 4, the convenient proxy lies, and
+it is always the one that is easy to read. On the shipping film it fires:
+
+    llvm_ad_rgb, default threads, shipping    4,363.90 ms   DIFFERS
+    metal_ad_rgb, default threads, shipping     545.00 ms   DIFFERS
+
+**Metal is 60x and still not a corpus renderer.** The obvious objection was that
+`mi.render()` was called without a seed while `render_view.py:155` passes `seed=0`. Pinned at 0,
+three runs produced **three different sha256 digests**, so the divergence is GPU accumulation
+order rather than a seed artefact. A renderer that cannot reproduce a frame is not a corpus
+renderer, whatever it costs.
+
+## And every macOS measurement here was CPU-only because a list said so
+
+Two sites, found independently, the same shape:
+
+    render_view.py:110        ("llvm_ad_rgb", "cuda_ad_rgb", "scalar_rgb")   -- no metal_ad_rgb
+    gate_onnx_device.py:156   providers=["CPUExecutionProvider"]             -- no CoreML
+
+`logbook-edge-npu-and-the-anny-forward.md` opens "macOS, no accelerator" and reports the backbone
+at 1399.3 ms. That is not a property of this machine; it is a property of line 156. **A hardcoded
+backend list turns a capability question into a tautology.**
+
+Both lists now offer their Mac entries, and the answers are not the ones expected.
+
+**CoreML is slower and outside tolerance.** At 576 with `num_windows=1`:
+
+    CPUExecutionProvider       476.4 ms    max|diff| 4.470e-06     1.00x
+    CoreMLExecutionProvider   1685.1 ms    max|diff| 4.924e-03     0.28x
+
+Nearly four times slower, and past the port's own 4.2e-03 bound, so it fails the gate on
+accuracy as well as losing on speed. `get_providers()` reports what was registered rather than
+what ran — CoreML partitions a graph and hands unsupported nodes back to the CPU — which is the
+likely mechanism.
+
+**The reason is measurable and it unifies both results.** `scripts/gpu_tops.py`, dense GEMM at
+2n³ flops, synchronised, best-of-8:
+
+    mps fp32   5.71 TFLOP/s    84.0% of the 6.8 derived peak
+    mps fp16   6.20 TFLOP/s    only 1.09x fp32, not the 2x a half pipeline implies
+    mps bf16   2.96 TFLOP/s    0.48x fp16 and BELOW fp32
+    cpu fp32   2.19 TFLOP/s
+
+This GPU is worth **2.6x its own CPU** on the friendliest shape a device sees. With that little
+headroom, a partitioned graph shuttling tensors across the boundary loses, which is what CoreML
+did. The bf16 row confirms `bf16Native = 0` by measurement rather than assertion.
+
+**None of this makes the old hardcoded list correct.** It made a capability claim nobody had
+tested and happened to pick the right backend for the wrong reason. The next model or the next
+runtime version moves that answer and nothing would have noticed.
+
+The derived peak survives its own test at 84%, so the Devices table's ranking stands. GEMM is an
+upper bound, so read it as one.
+
 ## The shipping variant, timed
 
 ANNY's face count, 1024², one sample per pixel — `mi_bench2.py`'s film, unchanged, because that
@@ -124,7 +198,7 @@ stops transferring to the next.
 detector's quantization is deployment — it reads frames somebody else rendered and emits
 keypoints, and nothing it produces enters a corpus. Only T05's generator path is bound.
 
-## The rerank: 18.3 size points, and 41% of it is one task
+## The rerank: 20.0 size points, and 38% of it is one task
 
 Computed by `check_rfd107a_plan.py` from the sizes in the stage, by RFD 204d's formulas, and
 asserted against RFD 107a's own text so the two cannot drift.
@@ -140,21 +214,22 @@ Fibonacci and relative — they order tasks against each other and convert to no
 **The chain is the same six tasks the unit-duration reading named.** That is the least
 interesting thing about it. What moves is the weight:
 
-- **T08 masked training is 7.5 points, 41% of the path.** One task is most of the project and no
+- **T02 is back on the critical path**, resized from `S/M/L` to `M/L/XL`. The first rerank
+  demoted the renderer on the strength of a depth pass; correcting that promotes it and takes
+  `T04 → T05` off the path, each gaining 1.7 slack.
+- **T08 masked training is 7.5 points, 38% of the path.** Still the single heaviest, and no
   resequencing touches it.
-- **T02 keeps its position and loses its cushion** — slack falls from a full layer to 0.3. The
-  renderer is co-critical rather than comfortable, despite the render itself being an afternoon.
-- **T06 gains slack rather than losing it**: 5.7, more than five times its own size, and it is
-  the one outstanding task that runs on any desk in the fleet.
+- **T06 gains slack rather than losing it**: 7.3, over seven times its own size, and it is the
+  one outstanding task that runs on any desk in the fleet.
 
 **The bottleneck is a device, and the graph cannot express it.** T05, T07 and T08 are all
 `gpuBound` and all want the one plugged-in bf16 card, because condition 5 forbids the quantised
 alternative for anything writing corpus data. Their expected sizes sum to **13.0 of the 18.3
-points — 71% of the path — on a single RTX 3090**, a serial floor that no dependency edge
+points — 65% of the path — on a single RTX 3090**, a serial floor that no dependency edge
 describes.
 
 So the largest lever is not a resequencing. Plugging in the 4090 brings the path to **11.9
-points, cutting 35% off it**, by scaling the `gpuBound` tasks on derived peak rate. That is a ranking
+points, cutting 30% off it**, by scaling the `gpuBound` tasks on derived peak rate. That is a ranking
 and not a budget, in the sense `logbook-edge-npu-and-the-anny-forward.md` set: it assumes those
 tasks are compute-bound and perfectly portable, and neither was measured. It still costs a
 cable.

@@ -13,6 +13,7 @@ believed, which is the whole reason an entry clips its apparatus.
 | `mi_bench2.py`       | soft-renderer-and-mitsuba  | Mitsuba against an exact z-buffer, with Dr.Jit actually synced               |
 | `samples.py`         | soft-renderer-and-mitsuba  | ANNY depth and silhouette renders, written to disk for inspection            |
 | `mi_bench_llvm.py`   | rfd107a-hailo-first-rerank | the SHIPPING render variant, `llvm_ad_rgb` at one thread, never before timed |
+| `gpu_tops.py`        | rfd107a-hailo-first-rerank | measured GEMM throughput against the derived peak, fp32/fp16/bf16 and CPU    |
 | `keypoint_render.py` | soft-renderer-and-mitsuba  | 104 keypoints coloured by See-Through layer in OKHSL                         |
 
 These import from `3-interactor/pose-consensus/python` and expect `anny` installed.
