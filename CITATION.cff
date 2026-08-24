@@ -99,10 +99,30 @@ references:
       but it is not unreachable: where(p, a, b) = b + p * (a - b), with the
       predicate built as p = min(max((x - c) * k, -1e-6), 1), compiles and runs
       -- float error 3e-6 at k=100, quantized 0.025573 -- using only Sub, Mul,
-      Max, Min and Add. The lower clamp must not be literal 0.0, which is
-      recognised as ReLU, carries no clip_min, and makes the paired min fail with
-      KeyError: 'clip_min' in either order. So ThresholdedRelu may be reachable
-      after all, by this route rather than through Where.
+      Max, Min and Add. So ThresholdedRelu may be reachable after all, by this
+      route rather than through Where.
+
+      The lower clamp must not be literal 0.0. CORRECTED: a first reading of this
+      blamed the composition, saying max(x, 0.0) is recognised as ReLU and the
+      PAIRED min then fails reaching for clip_min. It is simpler and worse than
+      that -- max(x, 0.0) alone is rejected, with nothing after it, and the same
+      KeyError: 'clip_min'. The earlier max that compiled had bound 1.0, not 0.0,
+      which is what made the composition look guilty. Any exact-zero floor fails;
+      -1e-6 compiles and costs 1e-6.
+
+      PIECEWISE LINEAR IS THEREFORE PARTLY OPEN, and it is what NPUs do in
+      hardware for exactly these operators. Written as a hinge sum --
+      f(x) = f(t0) + s0*(x - t0) + SUM (s_k - s_{k-1}) * max(x - t_k, eps) -- it
+      needs only Sub, Max, Mul and Add. Measured: 1, 2 and 3 hinges compile, both
+      fanned from one input and chained; 8, 16 and 32 knots do not, failing with
+      ValueError: 'base_ew_add6' is not in list. So there is a size limit between
+      3 and 8 terms, and it is a graph-shape limit rather than an operator one.
+
+      UNEXPLAINED, and recorded rather than smoothed over: the fanned form also
+      disagrees with Nx in the compiler's own FLOAT emulation, by 0.073750 per
+      hinge exactly -- 0.147500 at two, 0.221250 at three. The chained form is
+      exact in float. A float-path disagreement that scales with fan-out is not
+      quantization and has no explanation here yet.
     repository-code: "https://github.com/tinygrad/tinygrad"
     license: MIT
   - type: software
