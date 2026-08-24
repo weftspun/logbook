@@ -12,6 +12,7 @@ believed, which is the whole reason an entry clips its apparatus.
 | `mi_bench.py`        | soft-renderer-and-mitsuba | first Mitsuba pass, and the three ways it flattered itself        |
 | `mi_bench2.py`       | soft-renderer-and-mitsuba | Mitsuba against an exact z-buffer, with Dr.Jit actually synced    |
 | `samples.py`         | soft-renderer-and-mitsuba | ANNY depth and silhouette renders, written to disk for inspection |
+| `mi_bench_llvm.py`   | rfd107a-hailo-first-rerank | the SHIPPING render variant, `llvm_ad_rgb` at one thread, never before timed |
 | `keypoint_render.py` | soft-renderer-and-mitsuba | 104 keypoints coloured by See-Through layer in OKHSL              |
 
 These import from `3-interactor/pose-consensus/python` and expect `anny` installed.
@@ -21,7 +22,7 @@ and a 4090 are in use, 24 GB each and not the same throughput. So this file name
 a timing that reaches an entry has to carry the machine it was measured on rather than inherit
 one from here.
 
-**The scripts do not all do that yet.** Only `samples.py` prints its device, through
-`torch.cuda.get_device_name(0)`; the other seven report timings with nothing identifying what
-produced them. That is a gap rather than a convention, and it is written down here because the
+**The scripts do not all do that yet.** `samples.py` prints its device through
+`torch.cuda.get_device_name(0)` and `mi_bench_llvm.py` prints its chip and core count through
+`sysctl`; the other seven report timings with nothing identifying what produced them. That is a gap rather than a convention, and it is written down here because the
 previous wording claimed the opposite and no run would have contradicted it.
