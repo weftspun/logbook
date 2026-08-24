@@ -371,6 +371,8 @@ def main(argv):
     ap.add_argument("--worker", nargs=2, metavar=("VARIANT", "THREADS"))
     ap.add_argument("--spp", type=int, default=SPP)
     ap.add_argument("--film", choices=("bench", "shipping"), default="bench")
+    ap.add_argument("--scale-film", choices=("bench", "shipping"), default="shipping",
+                    help="film for the process-scaling table; the corpus renders on `shipping`")
     ap.add_argument("--results", default=str(pathlib.Path.home() / "Desktop"),
                     help="directory for the machine-readable result record")
     ap.add_argument("--procs", default="1,2,4,8",
@@ -454,13 +456,26 @@ def main(argv):
     # about how many frames are in flight. So a corpus renders at N processes x one thread with
     # every frame still reproducible, and the throughput that matters is aggregate rather than
     # per-process. Reported as a speed-up against one process so the drop-off is visible.
-    print("\nconcurrent single-threaded processes, each still byte-reproducible:\n")
+    # THIS TABLE MEASURED THE WRONG FILM AND PRINTED IT UNDER A CORPUS HEADING.
+    #
+    # The Popen above passed no `--film`, so it defaulted to `bench` -- an aov depth pass at one
+    # sample -- while the heading and the 800k column read as corpus throughput. The rest of this
+    # file exists to retract exactly that confusion, and this block went on repeating it: "800k =
+    # an afternoon" was the most quotable line in the output and it was 447x wrong.
+    #
+    # The film is now explicit and printed. Default is `shipping`, because the question this
+    # table answers is how long the CORPUS takes, and a reader who wants the depth pass can ask
+    # for it by name.
+    scale_spp = SHIPPING_SPP if a.scale_film == "shipping" else SPP
+    print(f"\nconcurrent single-threaded processes on the {a.scale_film.upper()} film "
+          f"(spp {scale_spp}), each still byte-reproducible:\n")
     base = None
     for n in [int(x) for x in a.procs.split(",") if x.strip()]:
         if time.time() - started > a.deadline:
             print(f"    {n:2d} procs   SKIPPED on the deadline, named rather than dropped")
             continue
-        procs = [subprocess.Popen([sys.executable, __file__, "--worker", "llvm_ad_rgb", "1"],
+        procs = [subprocess.Popen([sys.executable, __file__, "--worker", "llvm_ad_rgb", "1",
+                                   "--spp", str(scale_spp), "--film", a.scale_film],
                                   stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
                  for _ in range(n)]
         t0 = time.time()
@@ -537,9 +552,13 @@ def main(argv):
         print("    decoration rather than evidence. PITFALLS 2: a check that never fails")
         print("    certifies whatever it is pointed at.")
     print("")
-    print("    The 1-thread constraint STANDS either way. The process-scaling rows reach the")
-    print("    same throughput with every frame single-threaded, which is the configuration")
-    print("    the determinism measurement actually covers.")
+    print("    The 1-thread constraint STANDS either way, but the consolation attached to it")
+    print("    was a BENCH-film claim and does not survive the shipping film. On `bench`, eight")
+    print("    single-threaded processes matched the multithreaded rate, so the rule cost")
+    print("    nothing. On `shipping` at four processes the aggregate is 0.12 img/s against")
+    print("    0.22 for one multithreaded process -- about half. The crossover is somewhere")
+    print("    above four and has not been measured, so on the film that renders the corpus")
+    print("    the rule currently costs throughput rather than being free.")
     print("")
     print("    Two processes per row. A two-sample comparison resolves only drift that recurs;")
     print("    a defect appearing in one run of a hundred is below what this sees.")
