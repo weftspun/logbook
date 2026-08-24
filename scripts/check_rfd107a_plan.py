@@ -110,6 +110,197 @@ def rfd_text():
     return re.sub(r"(?<=\d),(?=\d)", "", "\n".join(parts)), None
 
 
+
+# --- the reranked path, and the devices it runs on ---------------------------------------
+#
+# WHY THIS IS HERE AT ALL, GIVEN THE FILE ARGUES AGAINST IT. RFD 107a's own ordering section
+# concludes that durations belong out of the graph: "Both readings are correct; they answer
+# different questions, and only one of them moves when a task completes." That argument stands
+# and is not deleted. What overrides it is narrower than it looks -- durations were kept out
+# because nothing read them, and a count nobody reads is a count nobody reviewed. So they enter
+# WITH a reader. The unit-duration path above is untouched and still checked; this is a second
+# reading beside it, not a replacement for it.
+
+DEVICES = "/Rfd107a/Devices"
+
+
+def size_scale(stage):
+    """The size vocabulary and its points, read out of the stage rather than restated here.
+
+    Same rule `check-rfd-structure.py` follows for RFD 1000's state list: the document owns the
+    list and the gate reads it, so the two cannot disagree. A scale hard-coded here would be a
+    second place for it to live.
+    """
+    data = stage.GetRootLayer().customLayerData
+    return dict(zip(data["sizeVocabulary"], data["sizePoints"]))
+
+
+def human_span(hours):
+    """A projection, said the way a person would say it.
+
+    CLAUDE.md pairs every physical measurement with a household object because "4.3 mm" does not
+    tell a reader whether an error matters. A wall-clock projection has the same problem in the
+    other direction: "16.2 h" invites a precision the estimate behind it never had. So a
+    RECORD stays SI -- 73.00 ms/image is an instrument reading and keeps its decimals -- and a
+    PROJECTION gets a span, which is the same move as the penny and the soda can.
+
+    Buckets deliberately do not discriminate finely. Two configurations that both land on "an
+    afternoon" are not being claimed equal; they are being claimed indistinguishable at the
+    resolution a plan can act on. The ms/image row is where the difference lives.
+    """
+    for limit, span in ((0.5, "half an hour"), (1.5, "about an hour"), (4, "an afternoon"),
+                        (10, "a working day"), (20, "overnight"), (60, "a long weekend"),
+                        (200, "a working week")):
+        if hours < limit:
+            return span
+    return "a month of wall-clock"
+
+
+def check_devices(stage, failures):
+    """Re-derive every peak rate rather than trusting the transcription.
+
+    `cores x lanes x 2 x clock` is arithmetic, so a typo in it is catchable and therefore has to
+    be caught. 2% tolerance, because the stated teraflop figures are rounded to one decimal and
+    the clocks are vendor boost numbers rather than anything measured on a desk.
+    """
+    scope = stage.GetPrimAtPath(DEVICES)
+    if not scope:
+        failures.append(f"no devices at {DEVICES}")
+        return {}
+
+    devices, assumed = {}, []
+    for d in scope.GetChildren():
+        a = {x.GetName(): x.Get() for x in d.GetAttributes() if x.HasAuthoredValue()}
+        devices[d.GetName()] = a
+        if a.get("clockAssumed"):
+            assumed.append(d.GetName())
+        if a.get("kind") != "gpu":
+            continue
+        want = a["computeUnits"] * a["lanesPerUnit"] * 2 * a["clockGhz"] / 1000.0
+        got = a["fp32Tflops"]
+        if abs(want - got) / want > 0.02:
+            failures.append(
+                f"{d.GetName()}: {a['computeUnits']} x {a['lanesPerUnit']} x 2 x "
+                f"{a['clockGhz']} GHz derives {want:.1f} TF, the stage says {got}")
+
+    live = [n for n, a in devices.items() if a.get("pluggedIn")]
+    if not failures:
+        # UNVERIFIED THINGS ARE NAMED AND COUNTED, NEVER OMITTED. Every clock here is a vendor
+        # figure; none was read off a desk. Printing the count is what stops the table being
+        # read as measured.
+        print(f"  ok   {len(devices)} devices, every peak rate re-derives from its own "
+              f"architecture; {len(live)} plugged in, {len(assumed)} clock(s) ASSUMED")
+    return devices
+
+
+def pert(stage, devices, failures, text):
+    """The duration-weighted path, by RFD 204d's formulas.
+
+        TE = (O + 4M + P) / 6        sigma^2 = ((P - O) / 6)^2
+
+    Reported beside the unit-duration reading rather than instead of it. A task with no
+    durations authored is a FAIL and not a zero: an unmet precondition that scores zero would
+    quietly shorten the path, which is the same shape as a silent skip reading like a pass.
+    """
+    plan = stage.GetPrimAtPath(PLAN)
+    scale = size_scale(stage)
+    te, var, deps, gpu, done = {}, {}, {}, {}, []
+    for task in plan.GetChildren():
+        n = task.GetName()
+        if task.GetAttribute("completed").Get():
+            # Counted and named, never quietly folded in as a zero.
+            done.append(n)
+            te[n] = var[n] = 0.0
+            gpu[n] = False
+            deps[n] = [d.name for d in task.GetRelationship("dependsOn").GetTargets()]
+            continue
+        toks = [task.GetAttribute(k).Get()
+                for k in ("optimisticSize", "mostLikelySize", "pessimisticSize")]
+        if any(v is None for v in toks):
+            failures.append(f"{n}: no sizes, so the reranked path cannot include it")
+            return None
+        bad = [v for v in toks if v not in scale]
+        if bad:
+            failures.append(f"{n}: size(s) {bad} outside the vocabulary {sorted(scale)}")
+            return None
+        o, m, pe = (scale[v] for v in toks)
+        if not (o <= m <= pe):
+            failures.append(
+                f"{n}: sizes are not ordered, {toks[0]} <= {toks[1]} <= {toks[2]} is false")
+            return None
+        te[n] = (o + 4 * m + pe) / 6.0
+        var[n] = ((pe - o) / 6.0) ** 2
+        gpu[n] = bool(task.GetAttribute("gpuBound").Get())
+        deps[n] = [d.name for d in task.GetRelationship("dependsOn").GetTargets()]
+
+    # THE FORWARD PASS WALKS `order` AND TRUSTS IT, SO IT HAS TO CHECK IT FIRST. A backward or
+    # dangling edge is already a failure above, but this walked the graph anyway and died on a
+    # KeyError -- a traceback instead of a verdict, which is worse than either. Found by the
+    # backward-edge control, which is the argument for having controls at all.
+    order = sorted(te, key=lambda n: plan.GetChild(n).GetAttribute("order").Get())
+    seen = set()
+    for n in order:
+        if any(d not in seen for d in deps[n]):
+            failures.append(
+                f"{n}: the reranked path cannot be computed while the graph is not a walkable "
+                f"order. The edge check above says why.")
+            return None
+        seen.add(n)
+
+    es, ef = {}, {}
+    for n in order:
+        es[n] = max([ef[d] for d in deps[n]], default=0.0)
+        ef[n] = es[n] + te[n]
+    finish = max(ef.values())
+
+    succ = {n: [m for m, ds in deps.items() if n in ds] for n in te}
+    lf, ls = {}, {}
+    for n in reversed(order):
+        lf[n] = min([ls[s] for s in succ[n]], default=finish)
+        ls[n] = lf[n] - te[n]
+    slack = {n: round(ls[n] - es[n], 3) for n in te}
+
+    chain = [n for n in order if slack[n] <= 1e-6 and te[n] > 0]
+    heaviest = max(te, key=lambda n: te[n])
+
+    # THE SCARCE RESOURCE, WHICH THE GRAPH CANNOT SEE. Tasks marked `gpuBound` all want the one
+    # plugged-in 24 GiB card, and the dependency graph has no edge saying so. Their summed TE is
+    # the serial floor that contention imposes independently of any ordering.
+    live_gpu = [n for n, a in devices.items()
+                if a.get("kind") == "gpu" and a.get("pluggedIn") and a.get("bf16Native")]
+    contended = sorted([n for n in te if gpu[n]], key=lambda n: -te[n])
+    contention = sum(te[n] for n in contended)
+
+    # POINTS, NOT DAYS. They order tasks against each other and convert to no calendar.
+    print(f"  ok   reranked path: {finish:.1f} size points over {len(chain)} tasks, "
+          f"heaviest {heaviest} at {te[heaviest]:.1f} "
+          f"({te[heaviest] / finish * 100:.0f}% of the path); {len(done)} complete")
+    print(f"  ok   contention: {len(contended)} gpuBound task(s) sum to {contention:.1f} points "
+          f"on {len(live_gpu)} live bf16 card(s) -- {', '.join(live_gpu) or 'none'}")
+
+    # THE LEVER, PRICED RATHER THAN ARGUED. The 4090 sits in the stage with `pluggedIn = 0`, so
+    # what it is worth is arithmetic: scale every gpuBound task by the ratio of derived peak
+    # rates and recompute. Peak-rate scaling is a RANKING and not a budget -- it assumes a task
+    # is compute-bound and perfectly portable, and neither is measured here.
+    off = [a for a in devices.values()
+           if a.get("kind") == "gpu" and not a.get("pluggedIn") and a.get("fp32Tflops")]
+    if off and live_gpu:
+        best_live = max(devices[n]["fp32Tflops"] for n in live_gpu)
+        ratio = best_live / max(a["fp32Tflops"] for a in off)
+        e2, f2 = {}, {}
+        for n in order:
+            s = max([f2[d] for d in deps[n]], default=0.0)
+            f2[n] = s + (te[n] * ratio if gpu[n] else te[n])
+        saved = finish - max(f2.values())
+        print(f"  ok   plugging in the unplugged card: {max(f2.values()):.1f} points, "
+              f"{saved:.1f} saved ({saved / finish * 100:.0f}%), a RANKING and not a budget")
+
+    want = f"{finish:.1f} size points"
+    if text is not None and want not in text:
+        failures.append(f"DETAILS.md does not state the reranked total: {want}")
+    return {"finish": finish, "chain": chain, "te": te, "var": var, "slack": slack}
+
+
 def check(path):
     from pxr import Usd
 
@@ -286,6 +477,10 @@ def check(path):
                 print(f"  ok   critical path: {depth} layers, {critical} of {len(deps)} "
                       f"critical, slack only on {floating[0]}")
 
+    if not err:
+        devices = check_devices(stage, failures)
+        pert(stage, devices, failures, text)
+
     # The counts, against the document rather than against memory.
     if err:
         failures.append(err)
@@ -405,6 +600,44 @@ def self_test(path):
         rel = stage.GetPrimAtPath(f"{SHAPE}/L03_HeadsAreParallelOnOneQuery").GetRelationship("justifiedBy")
         rel.SetTargets([f"{FINDINGS}/F10_BodyAndSceneAreTwoLatents"])
 
+    def _pert_sizes_missing(stage):
+        """Strip one task's sizes. A path that silently drops it would be shorter and would
+        still print a number, which is the shape a silent skip always takes."""
+        prim = stage.GetPrimAtPath(f"{PLAN}/T08_MaskedTraining")
+        for k in ("optimisticSize", "mostLikelySize", "pessimisticSize"):
+            prim.GetAttribute(k).Clear()
+
+    def _pert_sizes_unordered(stage):
+        """Optimistic above pessimistic. TE still evaluates, so nothing downstream notices."""
+        stage.GetPrimAtPath(f"{PLAN}/T05_StrengthWindow").GetAttribute(
+            "optimisticSize").Set("XL")
+
+    def _size_outside_vocabulary(stage):
+        """A size the scale does not define. Reading the vocabulary out of the stage is only
+        worth doing if something rejects a token that is not in it."""
+        stage.GetPrimAtPath(f"{PLAN}/T03_PbrBake").GetAttribute("mostLikelySize").Set("XXL")
+
+    def _device_arithmetic_drifts(stage):
+        """Move a clock and leave the teraflop figure behind it. This is the transcription
+        error the derivation exists to catch, and it is invisible to any reader."""
+        stage.GetPrimAtPath(f"{DEVICES}/RTX3090").GetAttribute("clockGhz").Set(2.9)
+
+    def _reranked_total_drifts(stage):
+        """Grow a task ON the critical path. The stage then states a total DETAILS.md does not.
+
+        THIS CONTROL STOPPED FIRING ONCE AND THE REASON IS WORTH KEEPING. It grew T06, chosen
+        when T06 had 5.7 slack and XL would have swamped it. Correcting the render measurement
+        moved T02 onto the critical path, which pushed T06's slack to 7.3 -- just past the 7
+        points XL adds -- so the mutation stopped changing the answer and the control went
+        green while proving nothing.
+
+        A mutation sized against a graph is a mutation that expires when the graph moves. T10 is
+        terminal and on the path by construction, so growing it always moves the finish, whatever
+        happens upstream."""
+        prim = stage.GetPrimAtPath(f"{PLAN}/T10_Evaluate")
+        for k in ("optimisticSize", "mostLikelySize", "pessimisticSize"):
+            prim.GetAttribute(k).Set("XL")
+
     controls = [
         ("a component with no finding behind it", _unjustified_component),
         ("two components share one finding", _borrowed_finding),
@@ -414,6 +647,11 @@ def self_test(path):
         ("a task states no measurement", _drop_a_measurement),
         ("a state outside the vocabulary", _unknown_state),
         ("the last slack in the plan disappears", _slack_vanishes),
+        ("a task carries no sizes", _pert_sizes_missing),
+        ("optimistic exceeds pessimistic", _pert_sizes_unordered),
+        ("a size outside the vocabulary", _size_outside_vocabulary),
+        ("a device clock drifts from its peak rate", _device_arithmetic_drifts),
+        ("the reranked total drifts from DETAILS.md", _reranked_total_drifts),
     ]
 
     print("negative controls (each must FAIL):")
