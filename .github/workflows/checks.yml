@@ -16,5 +16,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
+      # The double-join hook is `language: system` and shells out to elixir, so the runner
+      # needs a BEAM before prek starts. Pinned rather than floated for the same reason
+      # `usd-core` is: a toolchain bump should arrive as a diff somebody approves.
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "27"
+          elixir-version: "1.18"
       - run: pip install prek
       - run: prek run --all-files --show-diff-on-failure --color always
