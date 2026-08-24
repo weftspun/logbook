@@ -34,3 +34,87 @@ keywords:
   - measurement
   - working-agreements
   - dataset-provenance
+references:
+  - type: software
+    title: "ONNX: Open Neural Network Exchange"
+    abstract: >-
+      The operator specification the emitted graphs are written against. The
+      ai.onnx domain carries 178 operators at opset 17, of which the target
+      accelerator toolchain documents 58. `onnx.defs` is read directly rather
+      than copied, so a second list cannot drift from it.
+    repository-code: "https://github.com/onnx/onnx"
+    license: Apache-2.0
+  - type: software
+    title: "onnxruntime-extensions"
+    abstract: >-
+      Where the ONNX ecosystem actually puts text processing: tokenizers and
+      string operators as CUSTOM ops under the ai.onnx.contrib domain, not in
+      the standard specification. Cited as the reason StringNormalizer is
+      refused rather than rewritten -- a custom-op domain has no lowering to
+      hardware, so text preprocessing belongs ahead of the graph rather than
+      inside it.
+    repository-code: "https://github.com/microsoft/onnxruntime-extensions"
+    license: MIT
+  - type: software
+    title: "TorchCodec: PyTorch-native media decoding"
+    abstract: >-
+      Decodes video, audio and images to tensors on CPU and CUDA. Cited as the
+      media counterpart to the same boundary: decoding happens before the
+      graph, not in it. It does not handle text, which is why it does not
+      answer the string-operator question it was offered for.
+    repository-code: "https://github.com/meta-pytorch/torchcodec"
+    license: BSD-3-Clause
+  - type: software
+    title: "mathlib4"
+    abstract: >-
+      The library the secondary-path proofs are written against. Each exact
+      rewrite in hailo_ops.usda that claims an identity is proved in
+      RfdetrProofs/Secondary.lean; the six trigonometric rewrites are minimax
+      polynomials and are deliberately absent, because a theorem claiming
+      equality there would be false.
+    repository-code: "https://github.com/leanprover-community/mathlib4"
+    license: Apache-2.0
+  - type: software
+    title: "tinygrad"
+    abstract: >-
+      Reviewed for better decompositions than the hand-written ones. It
+      corroborated Shrink and Hardmax exactly, and its ThresholdedRelu is worse
+      for this target because it routes through Where, which the accelerator
+      rejects at parse. Its real contribution was negative: the transcendental
+      decompositions in codegen/decomp/transcendental.py, derived from SLEEF,
+      rest on bitcast, shifts, frexp, ldexp and round-to-int, every one of
+      which this target refuses. The polynomial core is plain multiply-add and
+      emits; the range reduction that would make it valid outside
+      [-pi/2, pi/2] does not.
+    repository-code: "https://github.com/tinygrad/tinygrad"
+    license: MIT
+  - type: software
+    title: "SLEEF: SIMD Library for Evaluating Elementary Functions"
+    abstract: >-
+      The source of the Payne-Hanek and Cody-Waite range reductions that
+      tinygrad's transcendental decompositions implement. Cited as the
+      provenance of an approach that is correct and unreachable here.
+    repository-code: "https://github.com/shibatch/sleef"
+    license: BSL-1.0
+  - type: article
+    title: "cuJSON: A Highly Parallel JSON Parser for GPUs"
+    authors:
+      - family-names: "Vedadi Gargary"
+        given-names: Ashkan
+    year: 2025
+    collection-title: >-
+      Proceedings of the 31st ACM International Conference on Architectural
+      Support for Programming Languages and Operating Systems (ASPLOS '26)
+    doi: "10.1145/3760250.3762222"
+    abstract: >-
+      Offered as a route to string operators. It shows structural text parsing
+      done data-parallel through prefix sums and precomputed structural arrays,
+      and a prefix sum is CumSum, which this table already rewrites as a
+      constant lower-triangular MatMul. What it does not remove is the
+      obstacle: a parsed structure has a length that depends on its input, and
+      data-dependent output shape is the one refusal category a static dataflow
+      graph can never express. So the parallelism is available and the shape is
+      not, which is why the refusal stands rather than moving.
+    repository-code: "https://github.com/AutomataLab/cuJSON"
+    license: MIT
+

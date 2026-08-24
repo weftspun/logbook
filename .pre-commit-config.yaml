@@ -87,3 +87,24 @@ repos:
         language: system
         files: ^scripts/check_double_join\.exs$
         pass_filenames: false
+
+      # CLAUDE.md was 972 lines, 592 of them the argument behind the blocklist table. The
+      # reasoning moved to BLOCKLIST.md so a reader looking up whether a source is permitted
+      # is not walking through the case against FLUX.1 to reach the next agreement.
+      #
+      # Splitting a document invents a way for it to go wrong: a row can promise "see below"
+      # with nothing below, or an argument can outlive the row it defends. Neither appears in
+      # a diff of the file being edited, because the other file is the one that changed.
+      - id: blocklist-detail
+        name: every blocklist row has its argument, and every argument its row
+        entry: python scripts/check_blocklist_detail.py
+        language: system
+        files: ^(CLAUDE\.md|BLOCKLIST\.md|scripts/check_blocklist_detail\.py)$
+        pass_filenames: false
+
+      - id: blocklist-detail-self-test
+        name: the blocklist-detail gate still fails on a row with no argument
+        entry: python scripts/check_blocklist_detail.py --self-test
+        language: system
+        files: ^scripts/check_blocklist_detail\.py$
+        pass_filenames: false
