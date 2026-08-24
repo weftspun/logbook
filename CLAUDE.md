@@ -175,18 +175,35 @@ Never `encode(decode(z))`.
 folders.
 
 **Sides.** Every repository sits on a side of the hexagon, and the `default.xml`
-of the goal manifest it is checked out through is what decides which —
-`weftspun/weftspun-mesh-latents` for the image-to-geometry goal,
-`weftspun/weftspun-keypoint` for the keypoint goal. A new repository is placed
-when it is added, not later: an unplaced project is the drift the six words
-exist to stop.
+of the goal manifest it is checked out through is what decides which. There is
+**one live goal manifest**, `weftspun/weftspun-keypoint`. A new repository is
+placed when it is added, not later: an unplaced project is the drift the six
+words exist to stop.
 
 This rule used to name one manifest, `weftspun/weftspun`, because there was one.
 That repository is **archived**: the manifest was split per goal, so the shared
-corpus projects now appear in both goal manifests rather than once in a single
+corpus projects appeared in both goal manifests rather than once in a single
 one. The wording matters because the archived manifest still lists projects, and
 a project placed only there is unplaced — placement is what a _live_ goal
 manifest says, not what the last revision of a read-only one says.
+
+**AND THEN IT HAPPENED AGAIN, TO THE SENTENCE THAT SAYS SO.**
+`weftspun/weftspun-mesh-latents` was archived on 2026-08-22, and this rule went
+on naming it as the live manifest for the image-to-geometry goal until
+2026-08-24. The paragraph above states exactly the test that would have caught
+it, and the paragraph below it failed that test — which is the reason both are
+kept rather than tidied into one.
+
+The split did not survive, then. The image-to-geometry projects were not
+stranded: they are `<project>` entries in `weftspun-keypoint` pinned at
+`refs/tags/mesh-latents/v0.1.0-dev.1`, so the goal's work is placed and reachable
+under a tag that names where it came from. What ended is the second manifest, not
+the second goal.
+
+So the rule is now cheaper to check than to argue about: **one live manifest, and
+a repository is placed when it appears in that one.** `repo list` and the org's
+archived set are the two things to read, and they disagree loudly when this rots
+a third time.
 
 **Deliverables.** Video-ready assets land as PSD or a video/image intermediate
 with `.cff` title and metadata, before any pod tear down. PSD because it carries

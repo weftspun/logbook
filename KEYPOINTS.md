@@ -12,11 +12,17 @@ produces keypoints, which is the same label this corpus supervises". A renderer 
 bodies, a detector trained on them, a referee that checks them, and hardware that measures
 them are four apparatus around one annotation.
 
-The sibling goal is named the same way. `weftspun/weftspun-mesh-latents` is everything that
-turns an image into geometry, and its header states the relationship between them: "The corpus
+The sibling goal was named the same way. `weftspun/weftspun-mesh-latents` was everything that
+turned an image into geometry, and its header stated the relationship between them: "The corpus
 is shared rather than copied. Both goals render from the same assets and both record into the
-same logbook." So the two manifests overlap heavily and are not a fork of each other — a
-project serving one goal and not the other is the exception.
+same logbook." The two manifests overlapped heavily and were not a fork of each other — a
+project serving one goal and not the other was the exception.
+
+**That manifest was archived on 2026-08-22, and the overlap is why the archiving cost little.**
+Because the corpus was shared rather than copied, absorbing the image-to-geometry projects into
+this manifest was a matter of listing them, not of moving anything: they sit here now pinned at
+`refs/tags/mesh-latents/v0.1.0-dev.1`, a tag that says which goal they came from. So there is
+one live goal manifest and still two goals.
 
 ## Three things carry this name and are not each other
 
