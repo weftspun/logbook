@@ -25,3 +25,34 @@ jobs:
           elixir-version: "1.18"
       - run: pip install prek
       - run: prek run --all-files --show-diff-on-failure --color always
+
+  # THE GOAL-MANIFEST GATE IS A CI JOB AND NOT A PREK HOOK, AND THE REASON IS THE TOKEN.
+  #
+  # It asks the GitHub organisation which repositories are archived, so it needs network and
+  # credentials. prek hooks get neither by contract -- they run on a developer's machine against
+  # files -- so wiring it there would produce a hook that fails for everyone without a token and
+  # gets skipped into uselessness.
+  #
+  # This is the failure the gate was written against, committed once already: it shipped with two
+  # firing controls and nothing that ran it, which is a gate that certifies nothing while looking
+  # official in the tree.
+  #
+  # UNREACHABLE IS A FAILURE HERE, NOT A SKIP. The script exits non-zero when it cannot read the
+  # org, so a network outage turns this job red rather than green. That is deliberate: a gate
+  # that goes quiet when it cannot check reports exactly what a passing gate reports.
+  goal-manifests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      # ONE INVOCATION, AND IT RUNS BOTH. `--self-test` performs the real check against
+      # CLAUDE.md first and the two negative controls after, exiting non-zero if either half
+      # fails. An earlier draft of this step described it as "controls first", copying the
+      # ordering `weftspun-keypoint`'s gates.yml uses -- which is not what this script does.
+      # A comment that describes a different program is worse than none.
+      - name: the rule names a live manifest, and the controls still fire
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/check_goal_manifests.py --self-test
