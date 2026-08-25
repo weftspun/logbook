@@ -224,6 +224,7 @@ edit cannot. It also takes a mesh rather than Pixal3D's latent, so the arm passe
             custom uniform token size = "L"
             custom uniform token state = "build"
             custom string artifact = "render png"
+            rel driver = </FourLoops/Stages/Harness>
             rel propose = [
                 </FourLoops/Stages/Keypoints>,
                 </FourLoops/Stages/AnnyFit>,
@@ -245,6 +246,7 @@ edit cannot. It also takes a mesh rather than Pixal3D's latent, so the arm passe
             custom uniform token size = "M"
             custom uniform token state = "build"
             custom string artifact = "edited png"
+            rel driver = </FourLoops/Stages/Harness>
             rel propose = </FourLoops/Stages/OmniGen2>
             rel score = </FourLoops/Stages/EditScore>
             rel repair = </FourLoops/Stages/OmniGen2>
@@ -259,6 +261,7 @@ edit cannot. It also takes a mesh rather than Pixal3D's latent, so the arm passe
             custom uniform token size = "M"
             custom uniform token state = "build"
             custom string artifact = "edited png"
+            rel driver = </FourLoops/Stages/Harness>
             rel propose = [
                 </FourLoops/Stages/CycleGan>,
                 </FourLoops/Stages/OmniGen2>,
@@ -286,6 +289,7 @@ that it selected an arm that cannot run, rather than quietly taking the other on
             custom uniform token size = "XL"
             custom uniform token state = "build"
             custom string artifact = "latent state, then views, then glb"
+            rel driver = </FourLoops/Stages/Harness>
             rel propose = </FourLoops/Stages/Pixal3D>
             rel score = </FourLoops/Stages/EditScore>
             rel repair = [
