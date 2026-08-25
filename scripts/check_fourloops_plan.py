@@ -106,6 +106,58 @@ def check_order(text, problems):
                 )
 
 
+def graph(text):
+    """(stage prims, stages each loop references, tasks each task needs)."""
+    stages, loops, needs = set(), {}, {}
+    for name, body in ORDER_RE.findall(text):
+        refs = REL_TARGET_RE.findall(body)
+        if name.startswith("L") and name[1:2].isdigit():
+            loops[name] = [r.rsplit("/", 1)[-1] for r in refs if "/Stages/" in r]
+        elif name.startswith("T") and name[1:2].isdigit():
+            needs[name] = [r.rsplit("/", 1)[-1] for r in refs if "/Tasks/" in r]
+    start = text.find('def Scope "Stages"')
+    if start == -1:
+        return set(), loops, needs
+    end = text.find('def Scope "', start + 10)
+    block = text[start:end if end != -1 else len(text)]
+    stages = set(re.findall(r'def\s+"([A-Za-z0-9_]+)"', block)) - {"Stages"}
+    return stages, loops, needs
+
+
+def check_dag(text, problems):
+    """The graph is acyclic, nothing is orphaned, and every loop has a task.
+
+    check_targets already proves each edge lands on a prim, which is not the same as the
+    graph being sound: a stage no loop uses is dead weight nobody notices, and a loop no
+    task realizes is work described and unscheduled. Both compose cleanly out of edges that
+    all resolve, which is why this check is separate.
+
+    NO CYCLE DETECTOR, AND THE REASON IS THAT ONE CANNOT FIRE HERE. A cycle in `needs`
+    requires two tasks each waiting on the other, and `check_order` already requires every
+    `needs` target to carry a strictly lower `order`. A cycle therefore cannot survive that
+    rule, and a detector for it could not be driven by any input the rule accepts. One was
+    written, its negative control was rejected by the order check rather than by the cycle
+    check, and it was removed: a check no control can exercise is worse than decoration,
+    because it reads in the output as though something were being verified.
+    """
+    stages, loops, needs = graph(text)
+
+    used = {stage for refs in loops.values() for stage in refs}
+    for orphan in sorted(stages - used):
+        problems.append(f"stage {orphan!r} is referenced by no loop")
+    for loop, refs in sorted(loops.items()):
+        if not refs:
+            problems.append(f"loop {loop!r} references no stage at all")
+
+    realized = set()
+    for name, body in ORDER_RE.findall(text):
+        if name.startswith("T") and name[1:2].isdigit():
+            realized |= {r.rsplit("/", 1)[-1] for r in REL_TARGET_RE.findall(body) if "/Loops/" in r}
+    for loop in sorted(loops):
+        if loop not in realized:
+            problems.append(f"loop {loop!r} is realized by no task")
+
+
 def check_targets(text, problems):
     known = prim_names(text) | {"FourLoops"}
     for target in set(REL_TARGET_RE.findall(text)):
@@ -182,6 +234,7 @@ def check(stage_path=DEFAULT_STAGE, chart_path=DEFAULT_CHART, root=None):
     text = load(stage_path)
     check_order(text, problems)
     check_targets(text, problems)
+    check_dag(text, problems)
     if root is not None:
         check_counts(text, root, problems)
     chart = pathlib.Path(chart_path)
@@ -230,12 +283,22 @@ def Scope "FourLoops"
         }
     }
 
+    def Scope "Loops"
+    {
+        def "L1Only"
+        {
+            custom int order = 1
+            rel score = </FourLoops/Stages/EditScore>
+        }
+    }
+
     def Scope "Tasks"
     {
         def "T01First"
         {
             custom int order = 1
             rel produces = </FourLoops/Stages/EditScore>
+            rel realizes = </FourLoops/Loops/L1Only>
         }
 
         def "T02Second"
@@ -277,6 +340,10 @@ def self_test():
          {"source": "the detector emits some joints\n"}, True),
         ("a source that does not exist",
          {"stage": GOOD.replace('"src.txt"', '"missing.txt"')}, True),
+        ("a stage no loop references",
+         {"stage": GOOD.replace("rel score = </FourLoops/Stages/EditScore>", "custom int spare = 0")}, True),
+        ("a loop no task realizes",
+         {"stage": GOOD.replace("rel realizes = </FourLoops/Loops/L1Only>", "custom int spare = 1")}, True),
         ("a chart naming a stage the layer does not have",
          {"chart": "<p><code>voxhammer</code></p>"}, True),
         ("a stage prim the chart never mentions",
