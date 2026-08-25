@@ -104,11 +104,20 @@ def Scope "FourLoops" (
         }
 
         def "AnnyFit" (
-            doc = "AnnyInverter solves a pose from target vertices. anny_rig.py is the canonical builder every consumer must use."
+            doc = """AnnyInverter solves a pose from target VERTICES, and that is why loop one stops.
+
+Both candidate solvers take the same shape. `AnnyInverter.__call__` takes
+`vertices_target (B, V, 3)` and SOMA-X's `PoseInversion.fit` takes `posed_vertices (B, V, 3)`.
+RF-DETR supplies 17 two-dimensional keypoints with confidences, and nothing in this workspace
+lifts points to vertices. A lift written here would put a number in front of the referee that
+no measurement supports.
+
+SOMA-X is unavailable twice over: its assets are a GitHub release artifact fetched by
+`assets/fetch.sh`, and the checked-out `assets/` holds that script and nothing else."""
         )
         {
             custom uniform token kind = "fit"
-            custom uniform token state = "build"
+            custom uniform token state = "blocked"
             custom string entry = "3-interactor/anny/src/anny/anny_inverter.py:AnnyInverter"
             custom string outputs = "pose, macro, v_hat"
         }
