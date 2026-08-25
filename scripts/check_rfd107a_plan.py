@@ -168,13 +168,19 @@ def check_devices(stage, failures):
         failures.append(f"no devices at {DEVICES}")
         return {}
 
-    devices, assumed = {}, []
+    devices, assumed, unmeasured = {}, [], []
     for d in scope.GetChildren():
         a = {x.GetName(): x.Get() for x in d.GetAttributes() if x.HasAuthoredValue()}
         devices[d.GetName()] = a
         if a.get("clockAssumed"):
             assumed.append(d.GetName())
         if a.get("kind") != "gpu":
+            continue
+        if a.get("peakUnmeasured"):
+            # NAMED AND COUNTED, NEVER SKIPPED. A device with no committed card model has no
+            # derived peak, and the honest report is that it has none -- not silence, which
+            # reads identically to a row that checked out.
+            unmeasured.append(d.GetName())
             continue
         want = a["computeUnits"] * a["lanesPerUnit"] * 2 * a["clockGhz"] / 1000.0
         got = a["fp32Tflops"]
@@ -188,8 +194,9 @@ def check_devices(stage, failures):
         # UNVERIFIED THINGS ARE NAMED AND COUNTED, NEVER OMITTED. Every clock here is a vendor
         # figure; none was read off a desk. Printing the count is what stops the table being
         # read as measured.
-        print(f"  ok   {len(devices)} devices, every peak rate re-derives from its own "
-              f"architecture; {len(live)} plugged in, {len(assumed)} clock(s) ASSUMED")
+        print(f"  ok   {len(devices)} devices, every derived peak re-derives from its own "
+              f"architecture; {len(live)} plugged in, {len(assumed)} clock(s) ASSUMED, "
+              f"{len(unmeasured)} with NO measured peak ({', '.join(unmeasured) or 'none'})")
     return devices
 
 
@@ -276,24 +283,19 @@ def pert(stage, devices, failures, text):
           f"heaviest {heaviest} at {te[heaviest]:.1f} "
           f"({te[heaviest] / finish * 100:.0f}% of the path); {len(done)} complete")
     print(f"  ok   contention: {len(contended)} gpuBound task(s) sum to {contention:.1f} points "
-          f"on {len(live_gpu)} live bf16 card(s) -- {', '.join(live_gpu) or 'none'}")
+          f"on {len(live_gpu)} live bf16 desk(s) -- {', '.join(live_gpu) or 'none'}")
 
-    # THE LEVER, PRICED RATHER THAN ARGUED. The 4090 sits in the stage with `pluggedIn = 0`, so
-    # what it is worth is arithmetic: scale every gpuBound task by the ratio of derived peak
-    # rates and recompute. Peak-rate scaling is a RANKING and not a budget -- it assumes a task
-    # is compute-bound and perfectly portable, and neither is measured here.
-    off = [a for a in devices.values()
-           if a.get("kind") == "gpu" and not a.get("pluggedIn") and a.get("fp32Tflops")]
-    if off and live_gpu:
-        best_live = max(devices[n]["fp32Tflops"] for n in live_gpu)
-        ratio = best_live / max(a["fp32Tflops"] for a in off)
-        e2, f2 = {}, {}
-        for n in order:
-            s = max([f2[d] for d in deps[n]], default=0.0)
-            f2[n] = s + (te[n] * ratio if gpu[n] else te[n])
-        saved = finish - max(f2.values())
-        print(f"  ok   plugging in the unplugged card: {max(f2.values()):.1f} points, "
-              f"{saved:.1f} saved ({saved / finish * 100:.0f}%), a RANKING and not a budget")
+    # THE "PLUG IN THE OTHER CARD" LEVER IS RETRACTED, AND ITS ABSENCE IS THE POINT.
+    #
+    # This block scaled every gpuBound task by the ratio of two card models' derived peaks and
+    # reported "plugging in the unplugged card is worth 30%". Both halves of that ratio were
+    # derived rather than measured, and the plan no longer names card models at all -- devices
+    # are MACHINES now, because which silicon sits in the PC changes without the plan changing.
+    #
+    # What replaces it is nothing, deliberately. A number computed from two unmeasured peaks was
+    # a schedule decision wearing an inventory measurement, and removing it leaves the honest
+    # state: the contention below is real and its relief is unquantified until someone measures
+    # the desk that would relieve it.
 
     want = f"{finish:.1f} size points"
     if text is not None and want not in text:
@@ -619,8 +621,13 @@ def self_test(path):
 
     def _device_arithmetic_drifts(stage):
         """Move a clock and leave the teraflop figure behind it. This is the transcription
-        error the derivation exists to catch, and it is invisible to any reader."""
-        stage.GetPrimAtPath(f"{DEVICES}/RTX3090").GetAttribute("clockGhz").Set(2.9)
+        error the derivation exists to catch, and it is invisible to any reader.
+
+        Retargeted from `RTX3090`, which no longer exists: devices are machines now. `M2Pro` is
+        the remaining row carrying a derived peak, which makes it the only place this control
+        can point -- worth noting, because a single-target control stops being a control the day
+        that target also loses its derivation."""
+        stage.GetPrimAtPath(f"{DEVICES}/M2Pro").GetAttribute("clockGhz").Set(2.9)
 
     def _reranked_total_drifts(stage):
         """Grow a task ON the critical path. The stage then states a total DETAILS.md does not.
