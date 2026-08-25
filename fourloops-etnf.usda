@@ -3,14 +3,10 @@
     defaultPrim = "FourLoopsEtnf"
     metersPerUnit = 1
     upAxis = "Z"
-)
-
-def Scope "FourLoopsEtnf" (
-    customData = {
+    customLayerData = {
         string plan = "fourloops-etnf"
         string state = "build"
         string graph = "2-contract/logbook/fourloops-plan.usda"
-        string thesis = "Four pipelines propose something, score it against whatever conditioned it, repair, and go round again. They share one shape, so they share one schema. This layer is every input the four take, written as relations: interned vocabularies, satellites instead of nullable columns, no NULLs, and nothing stored that can be computed. The interesting half is what is deliberately absent, and it is under absent rather than left out."
         string[] sources = [
             "6-datasource/anny-render-corpus/score_edits.py",
             "6-datasource/anny-render-corpus/render_view.py",
@@ -23,473 +19,620 @@ def Scope "FourLoopsEtnf" (
         ]
         string[] relationKindVocabulary = ["interned", "spine", "satellite", "measured"]
         string[] stateVocabulary = ["exists", "build", "measure", "stub", "blocked"]
-
-        dictionary interned = {
-            string purpose = "Typed once, referenced by id everywhere else. The repeated-text failure these prevent is two rounds claiming to answer the same question in two slightly different wordings."
-
-            dictionary loops = {
-                string kind = "interned"
-                string primaryKey = "loop_id"
-                string[] columns = ["loop_id int8 PK", "name string"]
-                int rowCount = 4
-                string[] rows = [
-                    "1 keypoints to ANNY",
-                    "2 image to OmniGen2",
-                    "3 stylized to OmniGen2",
-                    "4 latent to Pixal3D",
-                ]
-            }
-
-            dictionary models = {
-                string kind = "interned"
-                string primaryKey = "model_id"
-                string[] columns = ["model_id int16 PK", "repo string", "revision string", "adapter_id int16"]
-                int noAdapterSentinel = -1
-                string sentinelNote = "-1 is a value, not a null. A model with no adapter is a fact about the model, and a NULL is a fact about the row not having been filled in."
-            }
-
-            dictionary precisions = {
-                string kind = "interned"
-                string primaryKey = "precision_id"
-                string[] columns = ["precision_id int8 PK", "name string"]
-                int rowCount = 2
-                string[] rows = ["bf16", "nf4"]
-            }
-
-            dictionary instructions = {
-                string kind = "interned"
-                string primaryKey = "instruction_id"
-                string[] columns = ["instruction_id int32 PK", "text string"]
-                string note = "Typed once. A score carries the id, never the text."
-            }
-
-            dictionary repairArms = {
-                string kind = "interned"
-                string primaryKey = "arm_id"
-                string state = "stub"
-                string[] columns = ["arm_id int8 PK", "name string"]
-                string[] rows = ["voxhammer", "omnigen2"]
-            }
-
-            dictionary joints = {
-                string kind = "interned"
-                string primaryKey = "joint_id"
-                string[] columns = ["joint_id int8 PK", "name string"]
-                int rowCount = 17
-                string note = "The detector vocabulary. RF-DETR emits 17."
-            }
-
-            dictionary annyKeypoints = {
-                string kind = "interned"
-                string primaryKey = "anny_point_id"
-                string[] columns = ["anny_point_id int8 PK", "name string"]
-                int rowCount = 23
-                string note = "The render asset vocabulary. ANNY's coco.pth emits 23, the extra six being foot points."
-            }
-
-            dictionary jointSubset = {
-                string kind = "interned"
-                string[] columns = ["anny_point_id int8 FK", "joint_id int8 FK"]
-                int rowCount = 17
-                string[] maps = ["interned.annyKeypoints", "interned.joints"]
-                string note = "The subset is data, not a slice written into three different scripts. A shared name would let a 23-row array reach a 17-row consumer and be silently truncated at the tail, which is exactly where the feet are."
-            }
-
-            dictionary regions = {
-                string kind = "interned"
-                string primaryKey = "region_id"
-                string[] columns = ["region_id int8 PK", "name string"]
-                int rowCount = 5
-            }
-
-            dictionary topologies = {
-                string kind = "interned"
-                string primaryKey = "topology_id"
-                string[] columns = ["topology_id int8 PK", "name string", "vertex_count int32"]
-                int makehumanVertices = 19158
-                int corpusBodyVertices = 13718
-                string note = "render_corpus.py requires the 19,158-vertex makehuman topology; the corpus builder's body submodel is 13,718 and the keypoint weights are indexed against the first. One direction fails loudly, the other does not, and a topology_id foreign key on any vertex-indexed relation is what keeps it from being a guess."
-            }
-        }
-
-        dictionary spine = {
-            string purpose = "Three relations everything else reaches by foreign key, plus the latent the fourth loop passes."
-
-            dictionary runs = {
-                string kind = "spine"
-                string primaryKey = "run_id"
-                string[] columns = ["run_id int64 PK", "loop_id int8 FK", "control_artifact_id char64 FK", "baseline float32"]
-                string[] foreignKeys = ["interned.loops", "spine.artifacts"]
-                string note = "baseline is the floor the run is read against. A number without a baseline is not a measurement, so the floor is a column rather than a remark."
-            }
-
-            dictionary rounds = {
-                string kind = "spine"
-                string primaryKey = "run_id, round_index"
-                string[] columns = ["run_id int64 FK", "round_index int8", "artifact_id char64 FK", "repaired_from int8", "seconds float32"]
-                string[] foreignKeys = ["spine.runs", "spine.artifacts"]
-                int firstRoundParentSentinel = -1
-                string sentinelNote = "repaired_from is -1 on a first round. A value like -1 for no parent is a value; a NULL is not."
-            }
-
-            dictionary artifacts = {
-                string kind = "spine"
-                string primaryKey = "artifact_id"
-                string[] columns = ["artifact_id char64 PK", "media_type string", "byte_length int64"]
-                string addressing = "sha256 content address"
-                string note = "The key is the hash, so the same bytes are the same row however many stages produced them."
-            }
-
-            dictionary latents = {
-                string kind = "spine"
-                string primaryKey = "latent_id"
-                string[] columns = ["latent_id char64 PK", "run_id int64 FK", "byte_length int64"]
-                string[] foreignKeys = ["spine.runs"]
-                string note = "Stages pass latents; VAE decode happens once, at final output. Never encode(decode(z))."
-            }
-        }
-
-        dictionary satellites = {
-            string purpose = "Three satellites rather than one wide table. The alternative is one generations relation eight columns wide, five of them null on every row, with no way to tell not applicable from not recorded."
-
-            dictionary omnigen2Generations = {
-                string kind = "satellite"
-                string primaryKey = "run_id, round_index"
-                string[] columns = ["run_id int64 FK", "round_index int8 FK", "model_id int16 FK", "precision_id int8 FK", "steps int16", "guidance_image float32", "guidance_text float32"]
-                string[] on = ["spine.rounds"]
-            }
-
-            dictionary cycleganGenerations = {
-                string kind = "satellite"
-                string primaryKey = "run_id, round_index"
-                string[] columns = ["run_id int64 FK", "round_index int8 FK", "style string", "checkpoint_sha256 char64"]
-                string[] on = ["spine.rounds"]
-            }
-
-            dictionary pixal3dGenerations = {
-                string kind = "satellite"
-                string primaryKey = "run_id, round_index"
-                string[] columns = ["run_id int64 FK", "round_index int8 FK", "seed int64", "view_count int16"]
-                string[] on = ["spine.rounds"]
-            }
-
-            dictionary armSelections = {
-                string kind = "spine"
-                string primaryKey = "run_id, round_index"
-                string[] columns = ["run_id int64 FK", "round_index int8 FK", "arm_id int8 FK", "spread float32", "mean float32"]
-                string[] foreignKeys = ["spine.rounds", "interned.repairArms"]
-                string note = "The choice is recorded rather than implied by which artifact appeared next. The router is a relation, not a branch."
-            }
-
-            dictionary armUnavailable = {
-                string kind = "satellite"
-                string primaryKey = "run_id, round_index"
-                string[] columns = ["run_id int64 FK", "round_index int8 FK", "reason string"]
-                string[] on = ["satellites.armSelections"]
-                string note = "A tuple exists when the router picked an arm that could not execute. Falling through to the other arm would leave no trace at all, and a geometry failure would be recorded as an appearance failure that was repaired."
-            }
-        }
-
-        dictionary measured = {
-            string purpose = "Emitted, one measurement per tuple. Nothing here is set by hand, so a run's whole history is a selection rather than a parse of a JSON file."
-
-            dictionary scores = {
-                string kind = "measured"
-                string primaryKey = "run_id, round_index, instruction_id"
-                string[] columns = ["run_id int64 FK", "round_index int8 FK", "instruction_id int32 FK", "prompt_following float32", "consistency float32", "perceptual_quality float32", "overall float32"]
-                string[] foreignKeys = ["spine.rounds", "interned.instructions"]
-                string absence = "A refusal has no tuple."
-                string absenceNote = "A null overall enters an average as a zero and turns a refusal into a measurement of failure rather than the absence of a measurement."
-                float scaleMin = 0
-                float scaleMax = 10
-                string overallDerivation = "geometric mean of the three components"
-            }
-
-            dictionary viewScores = {
-                string kind = "measured"
-                string primaryKey = "artifact_id, hammersley_index"
-                string[] columns = ["artifact_id char64 FK", "latent_id char64 FK", "hammersley_index int16", "view_count int16", "overall float32"]
-                string[] foreignKeys = ["spine.artifacts", "spine.latents"]
-                string cameraSource = "sphere_hammersley_sequence"
-                string note = "The index and the count, and no camera at all. Yaw, pitch, radius and eye stored beside the index are free to disagree with the sequence that produced them the first time anybody changes the view count."
-            }
-
-            dictionary observations = {
-                string kind = "measured"
-                string primaryKey = "observation_id"
-                string[] columns = ["observation_id int64 PK", "artifact_id char64 FK"]
-                string[] foreignKeys = ["spine.artifacts"]
-            }
-
-            dictionary observedPoints = {
-                string kind = "measured"
-                string primaryKey = "observation_id, joint_id"
-                string[] columns = ["observation_id int64 FK", "joint_id int8 FK", "x float32", "y float32", "confidence float32"]
-                string[] foreignKeys = ["measured.observations", "interned.joints"]
-            }
-
-            dictionary fits = {
-                string kind = "measured"
-                string primaryKey = "fit_id"
-                string[] columns = ["fit_id int64 PK", "observation_id int64 FK", "stature_px float32"]
-                string[] foreignKeys = ["measured.observations"]
-            }
-
-            dictionary fitResiduals = {
-                string kind = "measured"
-                string primaryKey = "fit_id, region_id"
-                string[] columns = ["fit_id int64 FK", "region_id int8 FK", "residual float32"]
-                string[] foreignKeys = ["measured.fits", "interned.regions"]
-                string absence = "An absent region is NOT_RUN."
-                string absenceNote = "A referee region that did not run writes no tuple, and that missing tuple is the verdict. A silent skip reads exactly like a pass only when the skip is unnamed."
-            }
-
-            dictionary refereeVerdicts = {
-                string kind = "measured"
-                string primaryKey = "fit_id"
-                string[] columns = ["fit_id int64 FK", "verdict token"]
-                string[] foreignKeys = ["measured.fits"]
-                string[] verdicts = ["FITS", "IMPOSSIBLE", "HANDS_UNTRUSTED", "NOT_RUN"]
-            }
-        }
-
-        dictionary absent = {
-            string purpose = "Columns that are not here, and the derivation each one would have duplicated. Absence is recorded rather than left to be noticed."
-
-            dictionary cameraPose = {
-                string[] columns = ["yaw", "pitch", "radius", "eye"]
-                string derivedFrom = "sphere_hammersley_sequence(hammersley_index, view_count)"
-                string wouldHaveSatOn = "measured.viewScores"
-            }
-
-            dictionary scoreDelta = {
-                string[] columns = ["delta"]
-                string derivedFrom = "scores.overall minus runs.baseline"
-                string wouldHaveSatOn = "measured.scores"
-            }
-
-            dictionary viewStatistics = {
-                string[] columns = ["view_mean", "view_variance"]
-                string derivedFrom = "aggregate over view_scores for one artifact"
-                string wouldHaveSatOn = "measured.viewScores"
-            }
-
-            dictionary bestRound = {
-                string[] columns = ["best_round_index"]
-                string derivedFrom = "argmax of scores.overall over a run"
-                string wouldHaveSatOn = "spine.runs"
-            }
-
-            dictionary householdString = {
-                string[] columns = ["household_equivalent"]
-                string derivedFrom = "the residual and the anchor table, at print time"
-                string wouldHaveSatOn = "measured.fitResiduals"
-                string note = "Where a script prints measurements repeatedly, it gets a helper rather than a stored column."
-            }
-        }
-
-        dictionary rules = {
-            string purpose = "The four clauses, each recorded against the column it changed here rather than satisfied in the abstract."
-
-            dictionary internedVocabularies = {
-                int order = 1
-                string bitAt = "instructions is a relation, and a score carries an instruction_id."
-                string otherwise = "The instruction text repeated on every score row, which is how two rounds end up claiming to answer the same question in two slightly different wordings."
-                string[] evidence = ["interned.instructions", "measured.scores"]
-            }
-
-            dictionary satellitesNotNullableColumns = {
-                int order = 2
-                string bitAt = "Three generator satellites. OmniGen2 has steps and two guidance scales, CycleGAN has a style and a checkpoint hash, Pixal3D has a seed and a view count."
-                string otherwise = "One generations table eight columns wide, five of them null on every row, and no way to tell not applicable from not recorded."
-                string[] evidence = ["satellites.omnigen2Generations", "satellites.cycleganGenerations", "satellites.pixal3dGenerations"]
-            }
-
-            dictionary noNulls = {
-                int order = 3
-                string bitAt = "A refused score writes no scores tuple. A referee region that did not run writes no fit_residuals tuple, which is NOT_RUN. repaired_from is -1 on a first round."
-                string otherwise = "A null overall, which enters an average as a zero and turns a refusal into a measurement of failure rather than the absence of a measurement."
-                string[] evidence = ["measured.scores", "measured.fitResiduals", "spine.rounds"]
-            }
-
-            dictionary noDerivableColumns = {
-                int order = 4
-                string bitAt = "view_scores stores hammersley_index and view_count and no camera at all."
-                string otherwise = "Yaw, pitch, radius and eye stored beside the index, free to disagree with the sequence that produced them the first time anybody changes the view count."
-                string[] evidence = ["absent.cameraPose"]
-            }
-        }
-
-        dictionary loopInputs = {
-            string purpose = "What each loop adds to the schema. The loops themselves are in fourloops-plan.usda."
-
-            dictionary l1KeypointsToAnny = {
-                int order = 1
-                string state = "build"
-                string[] adds = ["measured.observations", "measured.observedPoints", "measured.fits", "measured.fitResiduals", "measured.refereeVerdicts", "interned.jointSubset"]
-            }
-
-            dictionary l2ImageToOmniGen2 = {
-                int order = 2
-                string state = "build"
-                string[] adds = ["interned.instructions", "measured.scores"]
-                string satellite = "satellites.omnigen2Generations"
-            }
-
-            dictionary l3StylizedToOmniGen2 = {
-                int order = 3
-                string state = "build"
-                string[] adds = ["interned.instructions", "measured.scores", "spine.artifacts"]
-                string satellite = "satellites.cycleganGenerations"
-                string scoredAgainst = "the stylized source, not the original"
-                string note = "Scoring against the original adds the style transfer and the edit together and reports the sum as one number."
-            }
-
-            dictionary l4LatentToPixal3D = {
-                int order = 4
-                string state = "stub"
-                string[] adds = ["spine.latents", "measured.viewScores", "satellites.armSelections"]
-                string satellite = "satellites.pixal3dGenerations"
-                string gap = "one arm stubbed"
-            }
-        }
-
-        dictionary stageWrites = {
-            string purpose = "Every relation is written by one stage. The ten are the ten in fourloops-plan.usda."
-
-            dictionary keypoints = {
-                string state = "blocked"
-                string[] blockedOn = ["rfdetr"]
-                string[] writes = ["measured.observations", "measured.observedPoints"]
-                string note = "Nothing checked out here carries rfdetr, so the fit can take 17 points from anywhere but not from a photograph."
-            }
-
-            dictionary annyFit = {
-                string state = "exists"
-                string[] writes = ["measured.fits"]
-                float roundTripPctOfStature = 0.263
-                string roundTripHousehold = "about one pencil on a 1.7 m body"
-            }
-
-            dictionary render = {
-                string state = "exists"
-                string[] writes = ["spine.artifacts"]
-                string note = "Plus the sidecar the hash comes from."
-            }
-
-            dictionary editScore = {
-                string state = "exists"
-                string[] writes = ["measured.scores", "measured.viewScores"]
-                string note = "And nothing on a refusal, which is the point."
-            }
-
-            dictionary omniGen2 = {
-                string state = "exists"
-                string[] writes = ["satellites.omnigen2Generations"]
-            }
-
-            dictionary cycleGan = {
-                string state = "exists"
-                string[] writes = ["satellites.cycleganGenerations"]
-            }
-
-            dictionary pixal3D = {
-                string state = "exists"
-                string[] writes = ["spine.latents", "satellites.pixal3dGenerations"]
-            }
-
-            dictionary voxHammer = {
-                string state = "stub"
-                string wouldWrite = "the repaired latent"
-                int planSteps = 7
-                string[] blockedOn = ["not-implemented", "takes-mesh-not-latent"]
-                string note = "The server dispatches its seven-step plan and raises NotImplementedError on every step outside stub mode. It also takes a mesh rather than the latent, so the arm passes through /extract first."
-            }
-
-            dictionary referee = {
-                string state = "exists"
-                string[] writes = ["measured.refereeVerdicts", "measured.fitResiduals"]
-            }
-
-            dictionary harness = {
-                string state = "exists"
-                string[] writes = ["spine.runs", "spine.rounds", "satellites.armSelections"]
-            }
-        }
-
-        dictionary measurements = {
-            string purpose = "What the first real run measured. Everything else was written before a card was switched on; two EditScore calls have now run, and they moved one number and killed one assumption."
-
-            dictionary editScoreMatchingInstruction = {
-                string what = "a matching instruction"
-                float promptFollowing = 10.0
-                float consistency = 9.2
-                float perceptualQuality = 2.0
-                float overall = 4.29
-            }
-
-            dictionary editScoreNonsenseInstruction = {
-                string what = "a nonsense instruction, same pair"
-                float promptFollowing = 0.0
-                float consistency = 10.0
-                float perceptualQuality = 2.0
-                float overall = 0.0
-                string role = "negative control"
-                string note = "A check that passes on known-broken input is decoration. The nonsense instruction is the input that must score zero."
-            }
-
-            dictionary peakVram512 = {
-                float measuredGib = 6.7506
-                float citedGib = 6.75
-                string resolution = "512x512"
-                bool confirmed = 1
-                string note = "The one number here that was confirmed rather than corrected."
-            }
-        }
-
-        dictionary hazards = {
-            dictionary routerScale = {
-                string state = "build"
-                string defect = "A constant compared against an assumed range."
-                float scaleMin = 0
-                float scaleMax = 10
-                string wrongTwice = "First as a variance against 0.15, which almost never fired; then as a standard deviation on a range ten times larger, where it fires on almost anything."
-                string statistic = "spread-over-mean"
-                bool calibrated = 0
-                string remedy = "The router becomes scale-free, spread over mean, and the threshold is set from measured view scores rather than from a third guess."
-                string appliesTo = "satellites.armSelections"
-            }
-
-            dictionary singleHandPickedView = {
-                string defect = "A shape wrong along one axis scores well from the view that hides it, so a single hand-picked front view cannot separate that case from a flat appearance failure."
-                string remedy = "Views come from sphere_hammersley_sequence."
-                string appliesTo = "measured.viewScores"
-            }
-
-            dictionary twoJointCounts = {
-                int detectorJoints = 17
-                int assetPoints = 23
-                string defect = "A shared name would let a 23-row array reach a 17-row consumer and be silently truncated at the tail, which is exactly where the feet are."
-                string remedy = "Separate vocabularies with a mapping relation between them."
-                string appliesTo = "interned.jointSubset"
-            }
-
-            dictionary twoTopologies = {
-                int renderVertices = 19158
-                int corpusBodyVertices = 13718
-                string defect = "One direction fails loudly. The other does not."
-                string remedy = "A topology_id foreign key on any vertex-indexed relation."
-                string appliesTo = "interned.topologies"
-            }
-
-            dictionary armCannotRun = {
-                string state = "stub"
-                string defect = "Falling through to the other arm would leave no trace at all, and a geometry failure would be recorded as an appearance failure that was repaired."
-                string remedy = "arm_unavailable is a satellite on arm_selections: a tuple exists when the router picked an arm that could not execute."
-                string appliesTo = "satellites.armUnavailable"
-            }
-        }
     }
 )
+
+def Scope "FourLoopsEtnf"
 {
+    custom string thesis = "Four pipelines propose something, score it against whatever conditioned it, repair, and go round again. They share one shape, so they share one schema. This layer is every input the four take, written as relations: interned vocabularies, satellites instead of nullable columns, no NULLs, and nothing stored that can be computed. The interesting half is what is deliberately absent, and it is under Absent rather than left out."
+
+    def Scope "Interned"
+    {
+        custom string sectionNote = "Typed once, referenced by id everywhere else. The repeated-text failure these prevent is two rounds claiming to answer the same question in two slightly different wordings."
+
+        def "Loops"
+        {
+            custom uniform token kind = "interned"
+            custom string primaryKey = "loop_id"
+            custom string[] columns = ["loop_id int8 PK", "name string"]
+            custom int rowCount = 4
+            custom string[] rows = [
+                "1 keypoints to ANNY",
+                "2 image to OmniGen2",
+                "3 stylized to OmniGen2",
+                "4 latent to Pixal3D",
+            ]
+        }
+
+        def "Models"
+        {
+            custom uniform token kind = "interned"
+            custom string primaryKey = "model_id"
+            custom string[] columns = ["model_id int16 PK", "repo string", "revision string", "adapter_id int16"]
+            custom int noAdapterSentinel = -1
+            custom string sentinelNote = "-1 is a value, not a null. A model with no adapter is a fact about the model, and a NULL is a fact about the row not having been filled in."
+        }
+
+        def "Precisions"
+        {
+            custom uniform token kind = "interned"
+            custom string primaryKey = "precision_id"
+            custom string[] columns = ["precision_id int8 PK", "name string"]
+            custom int rowCount = 2
+            custom string[] rows = ["bf16", "nf4"]
+        }
+
+        def "Instructions"
+        {
+            custom uniform token kind = "interned"
+            custom string primaryKey = "instruction_id"
+            custom string[] columns = ["instruction_id int32 PK", "text string"]
+            custom string note = "Typed once. A score carries the id, never the text."
+        }
+
+        def "RepairArms"
+        {
+            custom uniform token kind = "interned"
+            custom uniform token state = "stub"
+            custom string primaryKey = "arm_id"
+            custom string[] columns = ["arm_id int8 PK", "name string"]
+            custom string[] rows = ["voxhammer", "omnigen2"]
+        }
+
+        def "Joints"
+        {
+            custom uniform token kind = "interned"
+            custom string primaryKey = "joint_id"
+            custom string[] columns = ["joint_id int8 PK", "name string"]
+            custom int rowCount = 17
+            custom string note = "The detector vocabulary. RF-DETR emits 17."
+        }
+
+        def "AnnyKeypoints"
+        {
+            custom uniform token kind = "interned"
+            custom string primaryKey = "anny_point_id"
+            custom string[] columns = ["anny_point_id int8 PK", "name string"]
+            custom int rowCount = 23
+            custom string note = "The render asset vocabulary. ANNY's coco.pth emits 23, the extra six being foot points."
+        }
+
+        def "JointSubset"
+        {
+            custom uniform token kind = "interned"
+            custom string[] columns = ["anny_point_id int8 FK", "joint_id int8 FK"]
+            custom int rowCount = 17
+            custom string note = "The subset is data, not a slice written into three different scripts. A shared name would let a 23-row array reach a 17-row consumer and be silently truncated at the tail, which is exactly where the feet are."
+            rel maps = [
+                </FourLoopsEtnf/Interned/AnnyKeypoints>,
+                </FourLoopsEtnf/Interned/Joints>,
+            ]
+        }
+
+        def "Regions"
+        {
+            custom uniform token kind = "interned"
+            custom string primaryKey = "region_id"
+            custom string[] columns = ["region_id int8 PK", "name string"]
+            custom int rowCount = 5
+        }
+
+        def "Topologies"
+        {
+            custom uniform token kind = "interned"
+            custom string primaryKey = "topology_id"
+            custom string[] columns = ["topology_id int8 PK", "name string", "vertex_count int32"]
+            custom int makehumanVertices = 19158
+            custom int corpusBodyVertices = 13718
+            custom string note = "render_corpus.py requires the 19,158-vertex makehuman topology; the corpus builder's body submodel is 13,718 and the keypoint weights are indexed against the first. One direction fails loudly, the other does not, and a topology_id foreign key on any vertex-indexed relation is what keeps it from being a guess."
+        }
+    }
+
+    def Scope "Spine"
+    {
+        custom string sectionNote = "Three relations everything else reaches by foreign key, plus the latent the fourth loop passes."
+
+        def "Runs"
+        {
+            custom uniform token kind = "spine"
+            custom string primaryKey = "run_id"
+            custom string[] columns = ["run_id int64 PK", "loop_id int8 FK", "control_artifact_id char64 FK", "baseline float32"]
+            custom string note = "baseline is the floor the run is read against. A number without a baseline is not a measurement, so the floor is a column rather than a remark."
+            rel foreignKeys = [
+                </FourLoopsEtnf/Interned/Loops>,
+                </FourLoopsEtnf/Spine/Artifacts>,
+            ]
+        }
+
+        def "Rounds"
+        {
+            custom uniform token kind = "spine"
+            custom string primaryKey = "run_id, round_index"
+            custom string[] columns = ["run_id int64 FK", "round_index int8", "artifact_id char64 FK", "repaired_from int8", "seconds float32"]
+            custom int firstRoundParentSentinel = -1
+            custom string sentinelNote = "repaired_from is -1 on a first round. A value like -1 for no parent is a value; a NULL is not."
+            rel foreignKeys = [
+                </FourLoopsEtnf/Spine/Runs>,
+                </FourLoopsEtnf/Spine/Artifacts>,
+            ]
+        }
+
+        def "Artifacts"
+        {
+            custom uniform token kind = "spine"
+            custom string primaryKey = "artifact_id"
+            custom string[] columns = ["artifact_id char64 PK", "media_type string", "byte_length int64"]
+            custom string addressing = "sha256 content address"
+            custom string note = "The key is the hash, so the same bytes are the same row however many stages produced them."
+        }
+
+        def "Latents"
+        {
+            custom uniform token kind = "spine"
+            custom string primaryKey = "latent_id"
+            custom string[] columns = ["latent_id char64 PK", "run_id int64 FK", "byte_length int64"]
+            custom string note = "Stages pass latents; VAE decode happens once, at final output. Never encode(decode(z))."
+            rel foreignKeys = </FourLoopsEtnf/Spine/Runs>
+        }
+    }
+
+    def Scope "Satellites"
+    {
+        custom string sectionNote = "Three satellites rather than one wide table. The alternative is one generations relation eight columns wide, five of them null on every row, with no way to tell not applicable from not recorded."
+
+        def "Omnigen2Generations"
+        {
+            custom uniform token kind = "satellite"
+            custom string primaryKey = "run_id, round_index"
+            custom string[] columns = ["run_id int64 FK", "round_index int8 FK", "model_id int16 FK", "precision_id int8 FK", "steps int16", "guidance_image float32", "guidance_text float32"]
+            rel on = </FourLoopsEtnf/Spine/Rounds>
+            rel foreignKeys = [
+                </FourLoopsEtnf/Interned/Models>,
+                </FourLoopsEtnf/Interned/Precisions>,
+            ]
+        }
+
+        def "CycleganGenerations"
+        {
+            custom uniform token kind = "satellite"
+            custom string primaryKey = "run_id, round_index"
+            custom string[] columns = ["run_id int64 FK", "round_index int8 FK", "style string", "checkpoint_sha256 char64"]
+            rel on = </FourLoopsEtnf/Spine/Rounds>
+        }
+
+        def "Pixal3dGenerations"
+        {
+            custom uniform token kind = "satellite"
+            custom string primaryKey = "run_id, round_index"
+            custom string[] columns = ["run_id int64 FK", "round_index int8 FK", "seed int64", "view_count int16"]
+            rel on = </FourLoopsEtnf/Spine/Rounds>
+        }
+
+        def "ArmSelections"
+        {
+            custom uniform token kind = "spine"
+            custom string primaryKey = "run_id, round_index"
+            custom string[] columns = ["run_id int64 FK", "round_index int8 FK", "arm_id int8 FK", "spread float32", "mean float32"]
+            custom string note = "The choice is recorded rather than implied by which artifact appeared next. The router is a relation, not a branch."
+            rel foreignKeys = [
+                </FourLoopsEtnf/Spine/Rounds>,
+                </FourLoopsEtnf/Interned/RepairArms>,
+            ]
+        }
+
+        def "ArmUnavailable"
+        {
+            custom uniform token kind = "satellite"
+            custom string primaryKey = "run_id, round_index"
+            custom string[] columns = ["run_id int64 FK", "round_index int8 FK", "reason string"]
+            custom string note = "A tuple exists when the router picked an arm that could not execute. Falling through to the other arm would leave no trace at all, and a geometry failure would be recorded as an appearance failure that was repaired."
+            rel on = </FourLoopsEtnf/Satellites/ArmSelections>
+        }
+    }
+
+    def Scope "Measured"
+    {
+        custom string sectionNote = "Emitted, one measurement per tuple. Nothing here is set by hand, so a run's whole history is a selection rather than a parse of a JSON file."
+
+        def "Scores"
+        {
+            custom uniform token kind = "measured"
+            custom string primaryKey = "run_id, round_index, instruction_id"
+            custom string[] columns = ["run_id int64 FK", "round_index int8 FK", "instruction_id int32 FK", "prompt_following float32", "consistency float32", "perceptual_quality float32", "overall float32"]
+            custom string absence = "A refusal has no tuple."
+            custom string absenceNote = "A null overall enters an average as a zero and turns a refusal into a measurement of failure rather than the absence of a measurement."
+            custom float scaleMin = 0
+            custom float scaleMax = 10
+            custom string overallDerivation = "geometric mean of the three components"
+            rel foreignKeys = [
+                </FourLoopsEtnf/Spine/Rounds>,
+                </FourLoopsEtnf/Interned/Instructions>,
+            ]
+        }
+
+        def "ViewScores"
+        {
+            custom uniform token kind = "measured"
+            custom string primaryKey = "artifact_id, hammersley_index"
+            custom string[] columns = ["artifact_id char64 FK", "latent_id char64 FK", "hammersley_index int16", "view_count int16", "overall float32"]
+            custom string cameraSource = "sphere_hammersley_sequence"
+            custom string note = "The index and the count, and no camera at all. Yaw, pitch, radius and eye stored beside the index are free to disagree with the sequence that produced them the first time anybody changes the view count."
+            rel foreignKeys = [
+                </FourLoopsEtnf/Spine/Artifacts>,
+                </FourLoopsEtnf/Spine/Latents>,
+            ]
+        }
+
+        def "Observations"
+        {
+            custom uniform token kind = "measured"
+            custom string primaryKey = "observation_id"
+            custom string[] columns = ["observation_id int64 PK", "artifact_id char64 FK"]
+            rel foreignKeys = </FourLoopsEtnf/Spine/Artifacts>
+        }
+
+        def "ObservedPoints"
+        {
+            custom uniform token kind = "measured"
+            custom string primaryKey = "observation_id, joint_id"
+            custom string[] columns = ["observation_id int64 FK", "joint_id int8 FK", "x float32", "y float32", "confidence float32"]
+            rel foreignKeys = [
+                </FourLoopsEtnf/Measured/Observations>,
+                </FourLoopsEtnf/Interned/Joints>,
+            ]
+        }
+
+        def "Fits"
+        {
+            custom uniform token kind = "measured"
+            custom string primaryKey = "fit_id"
+            custom string[] columns = ["fit_id int64 PK", "observation_id int64 FK", "stature_px float32"]
+            rel foreignKeys = </FourLoopsEtnf/Measured/Observations>
+        }
+
+        def "FitResiduals"
+        {
+            custom uniform token kind = "measured"
+            custom string primaryKey = "fit_id, region_id"
+            custom string[] columns = ["fit_id int64 FK", "region_id int8 FK", "residual float32"]
+            custom string absence = "An absent region is NOT_RUN."
+            custom string absenceNote = "A referee region that did not run writes no tuple, and that missing tuple is the verdict. A silent skip reads exactly like a pass only when the skip is unnamed."
+            rel foreignKeys = [
+                </FourLoopsEtnf/Measured/Fits>,
+                </FourLoopsEtnf/Interned/Regions>,
+            ]
+        }
+
+        def "RefereeVerdicts"
+        {
+            custom uniform token kind = "measured"
+            custom string primaryKey = "fit_id"
+            custom string[] columns = ["fit_id int64 FK", "verdict token"]
+            custom string[] verdicts = ["FITS", "IMPOSSIBLE", "HANDS_UNTRUSTED", "NOT_RUN"]
+            rel foreignKeys = </FourLoopsEtnf/Measured/Fits>
+        }
+    }
+
+    def Scope "Absent"
+    {
+        custom string sectionNote = "Columns that are not here, and the derivation each one would have duplicated. Absence is recorded rather than left to be noticed."
+
+        def "CameraPose"
+        {
+            custom string[] columns = ["yaw", "pitch", "radius", "eye"]
+            custom string derivedFrom = "sphere_hammersley_sequence(hammersley_index, view_count)"
+            rel wouldHaveSatOn = </FourLoopsEtnf/Measured/ViewScores>
+        }
+
+        def "ScoreDelta"
+        {
+            custom string[] columns = ["delta"]
+            custom string derivedFrom = "scores.overall minus runs.baseline"
+            rel wouldHaveSatOn = </FourLoopsEtnf/Measured/Scores>
+        }
+
+        def "ViewStatistics"
+        {
+            custom string[] columns = ["view_mean", "view_variance"]
+            custom string derivedFrom = "aggregate over view_scores for one artifact"
+            rel wouldHaveSatOn = </FourLoopsEtnf/Measured/ViewScores>
+        }
+
+        def "BestRound"
+        {
+            custom string[] columns = ["best_round_index"]
+            custom string derivedFrom = "argmax of scores.overall over a run"
+            rel wouldHaveSatOn = </FourLoopsEtnf/Spine/Runs>
+        }
+
+        def "HouseholdString"
+        {
+            custom string[] columns = ["household_equivalent"]
+            custom string derivedFrom = "the residual and the anchor table, at print time"
+            custom string note = "Where a script prints measurements repeatedly, it gets a helper rather than a stored column."
+            rel wouldHaveSatOn = </FourLoopsEtnf/Measured/FitResiduals>
+        }
+    }
+
+    def Scope "Rules"
+    {
+        custom string sectionNote = "The four clauses, each recorded against the column it changed here rather than satisfied in the abstract."
+
+        def "InternedVocabularies"
+        {
+            custom int order = 1
+            custom string bitAt = "instructions is a relation, and a score carries an instruction_id."
+            custom string otherwise = "The instruction text repeated on every score row, which is how two rounds end up claiming to answer the same question in two slightly different wordings."
+            rel evidence = [
+                </FourLoopsEtnf/Interned/Instructions>,
+                </FourLoopsEtnf/Measured/Scores>,
+            ]
+        }
+
+        def "SatellitesNotNullableColumns"
+        {
+            custom int order = 2
+            custom string bitAt = "Three generator satellites. OmniGen2 has steps and two guidance scales, CycleGAN has a style and a checkpoint hash, Pixal3D has a seed and a view count."
+            custom string otherwise = "One generations table eight columns wide, five of them null on every row, and no way to tell not applicable from not recorded."
+            rel evidence = [
+                </FourLoopsEtnf/Satellites/Omnigen2Generations>,
+                </FourLoopsEtnf/Satellites/CycleganGenerations>,
+                </FourLoopsEtnf/Satellites/Pixal3dGenerations>,
+            ]
+        }
+
+        def "NoNulls"
+        {
+            custom int order = 3
+            custom string bitAt = "A refused score writes no scores tuple. A referee region that did not run writes no fit_residuals tuple, which is NOT_RUN. repaired_from is -1 on a first round."
+            custom string otherwise = "A null overall, which enters an average as a zero and turns a refusal into a measurement of failure rather than the absence of a measurement."
+            rel evidence = [
+                </FourLoopsEtnf/Measured/Scores>,
+                </FourLoopsEtnf/Measured/FitResiduals>,
+                </FourLoopsEtnf/Spine/Rounds>,
+            ]
+        }
+
+        def "NoDerivableColumns"
+        {
+            custom int order = 4
+            custom string bitAt = "view_scores stores hammersley_index and view_count and no camera at all."
+            custom string otherwise = "Yaw, pitch, radius and eye stored beside the index, free to disagree with the sequence that produced them the first time anybody changes the view count."
+            rel evidence = </FourLoopsEtnf/Absent/CameraPose>
+        }
+    }
+
+    def Scope "LoopInputs"
+    {
+        custom string sectionNote = "What each loop adds to the schema. The loops themselves are in fourloops-plan.usda."
+
+        def "L1KeypointsToAnny"
+        {
+            custom int order = 1
+            custom uniform token state = "build"
+            rel adds = [
+                </FourLoopsEtnf/Measured/Observations>,
+                </FourLoopsEtnf/Measured/ObservedPoints>,
+                </FourLoopsEtnf/Measured/Fits>,
+                </FourLoopsEtnf/Measured/FitResiduals>,
+                </FourLoopsEtnf/Measured/RefereeVerdicts>,
+                </FourLoopsEtnf/Interned/JointSubset>,
+            ]
+        }
+
+        def "L2ImageToOmniGen2"
+        {
+            custom int order = 2
+            custom uniform token state = "build"
+            rel adds = [
+                </FourLoopsEtnf/Interned/Instructions>,
+                </FourLoopsEtnf/Measured/Scores>,
+            ]
+            rel satellite = </FourLoopsEtnf/Satellites/Omnigen2Generations>
+        }
+
+        def "L3StylizedToOmniGen2"
+        {
+            custom int order = 3
+            custom uniform token state = "build"
+            custom string scoredAgainst = "the stylized source, not the original"
+            custom string note = "Scoring against the original adds the style transfer and the edit together and reports the sum as one number."
+            rel adds = [
+                </FourLoopsEtnf/Interned/Instructions>,
+                </FourLoopsEtnf/Measured/Scores>,
+                </FourLoopsEtnf/Spine/Artifacts>,
+            ]
+            rel satellite = </FourLoopsEtnf/Satellites/CycleganGenerations>
+        }
+
+        def "L4LatentToPixal3D"
+        {
+            custom int order = 4
+            custom uniform token state = "stub"
+            custom string gap = "one arm stubbed"
+            rel adds = [
+                </FourLoopsEtnf/Spine/Latents>,
+                </FourLoopsEtnf/Measured/ViewScores>,
+                </FourLoopsEtnf/Satellites/ArmSelections>,
+            ]
+            rel satellite = </FourLoopsEtnf/Satellites/Pixal3dGenerations>
+        }
+    }
+
+    def Scope "StageWrites"
+    {
+        custom string sectionNote = "Every relation is written by one stage. The ten are the ten in fourloops-plan.usda."
+
+        def "Keypoints"
+        {
+            custom uniform token state = "blocked"
+            custom string[] blockedOn = ["rfdetr"]
+            custom string note = "Nothing checked out here carries rfdetr, so the fit can take 17 points from anywhere but not from a photograph."
+            rel writes = [
+                </FourLoopsEtnf/Measured/Observations>,
+                </FourLoopsEtnf/Measured/ObservedPoints>,
+            ]
+        }
+
+        def "AnnyFit"
+        {
+            custom uniform token state = "exists"
+            custom string note = "The round trip that measures this stage is stated once, in fourloops-plan.usda under Stages/AnnyFit. Restating it here was a second place for one fact to live."
+            rel writes = </FourLoopsEtnf/Measured/Fits>
+        }
+
+        def "Render"
+        {
+            custom uniform token state = "exists"
+            custom string note = "Plus the sidecar the hash comes from."
+            rel writes = </FourLoopsEtnf/Spine/Artifacts>
+        }
+
+        def "EditScore"
+        {
+            custom uniform token state = "exists"
+            custom string note = "And nothing on a refusal, which is the point."
+            rel writes = [
+                </FourLoopsEtnf/Measured/Scores>,
+                </FourLoopsEtnf/Measured/ViewScores>,
+            ]
+        }
+
+        def "OmniGen2"
+        {
+            custom uniform token state = "exists"
+            rel writes = </FourLoopsEtnf/Satellites/Omnigen2Generations>
+        }
+
+        def "CycleGan"
+        {
+            custom uniform token state = "exists"
+            rel writes = </FourLoopsEtnf/Satellites/CycleganGenerations>
+        }
+
+        def "Pixal3D"
+        {
+            custom uniform token state = "exists"
+            rel writes = [
+                </FourLoopsEtnf/Spine/Latents>,
+                </FourLoopsEtnf/Satellites/Pixal3dGenerations>,
+            ]
+        }
+
+        def "VoxHammer"
+        {
+            custom uniform token state = "stub"
+            custom string wouldWrite = "the repaired latent"
+            custom int planSteps = 7
+            custom string[] blockedOn = ["not-implemented", "takes-mesh-not-latent"]
+            custom string note = "The server dispatches its seven-step plan and raises NotImplementedError on every step outside stub mode. It also takes a mesh rather than the latent, so the arm passes through /extract first."
+        }
+
+        def "Referee"
+        {
+            custom uniform token state = "exists"
+            rel writes = [
+                </FourLoopsEtnf/Measured/RefereeVerdicts>,
+                </FourLoopsEtnf/Measured/FitResiduals>,
+            ]
+        }
+
+        def "Harness"
+        {
+            custom uniform token state = "exists"
+            custom string note = "The router runs here, so the tuple recording that a picked arm could not execute is written here too."
+            rel writes = [
+                </FourLoopsEtnf/Spine/Runs>,
+                </FourLoopsEtnf/Spine/Rounds>,
+                </FourLoopsEtnf/Satellites/ArmSelections>,
+                </FourLoopsEtnf/Satellites/ArmUnavailable>,
+            ]
+        }
+    }
+
+    def Scope "Measurements"
+    {
+        custom string sectionNote = "What the first real run measured. Everything else was written before a card was switched on; two EditScore calls have now run, and they moved one number and killed one assumption."
+
+        def "EditScoreMatchingInstruction"
+        {
+            custom string what = "a matching instruction"
+            custom float promptFollowing = 10.0
+            custom float consistency = 9.2
+            custom float perceptualQuality = 2.0
+            custom float overall = 4.29
+            rel measuredBy = </FourLoopsEtnf/StageWrites/EditScore>
+        }
+
+        def "EditScoreNonsenseInstruction"
+        {
+            custom string what = "a nonsense instruction, same pair"
+            custom float promptFollowing = 0.0
+            custom float consistency = 10.0
+            custom float perceptualQuality = 2.0
+            custom float overall = 0.0
+            custom string role = "negative control"
+            custom string note = "A check that passes on known-broken input is decoration. The nonsense instruction is the input that must score zero."
+            rel measuredBy = </FourLoopsEtnf/StageWrites/EditScore>
+        }
+
+        def "PeakVram512"
+        {
+            custom float measuredGib = 6.7506
+            custom float citedGib = 6.75
+            custom string resolution = "512x512"
+            custom bool confirmed = 1
+            custom string note = "The one number here that was confirmed rather than corrected."
+            rel measuredBy = </FourLoopsEtnf/StageWrites/EditScore>
+        }
+    }
+
+    def Scope "Hazards"
+    {
+        def "RouterScale"
+        {
+            custom uniform token state = "build"
+            custom string defect = "A constant compared against an assumed range."
+            custom float scaleMin = 0
+            custom float scaleMax = 10
+            custom string wrongTwice = "First as a variance against 0.15, which almost never fired; then as a standard deviation on a range ten times larger, where it fires on almost anything."
+            custom uniform token statistic = "spread-over-mean"
+            custom bool calibrated = 0
+            custom string remedy = "The router becomes scale-free, spread over mean, and the threshold is set from measured view scores rather than from a third guess."
+            rel appliesTo = </FourLoopsEtnf/Satellites/ArmSelections>
+        }
+
+        def "SingleHandPickedView"
+        {
+            custom string defect = "A shape wrong along one axis scores well from the view that hides it, so a single hand-picked front view cannot separate that case from a flat appearance failure."
+            custom string remedy = "Views come from sphere_hammersley_sequence."
+            rel appliesTo = </FourLoopsEtnf/Measured/ViewScores>
+        }
+
+        def "TwoJointCounts"
+        {
+            custom int detectorJoints = 17
+            custom int assetPoints = 23
+            custom string defect = "A shared name would let a 23-row array reach a 17-row consumer and be silently truncated at the tail, which is exactly where the feet are."
+            custom string remedy = "Separate vocabularies with a mapping relation between them."
+            rel appliesTo = </FourLoopsEtnf/Interned/JointSubset>
+        }
+
+        def "TwoTopologies"
+        {
+            custom int renderVertices = 19158
+            custom int corpusBodyVertices = 13718
+            custom string defect = "One direction fails loudly. The other does not."
+            custom string remedy = "A topology_id foreign key on any vertex-indexed relation."
+            rel appliesTo = </FourLoopsEtnf/Interned/Topologies>
+        }
+
+        def "ArmCannotRun"
+        {
+            custom uniform token state = "stub"
+            custom string defect = "Falling through to the other arm would leave no trace at all, and a geometry failure would be recorded as an appearance failure that was repaired."
+            custom string remedy = "arm_unavailable is a satellite on arm_selections: a tuple exists when the router picked an arm that could not execute."
+            rel appliesTo = </FourLoopsEtnf/Satellites/ArmUnavailable>
+        }
+    }
 }

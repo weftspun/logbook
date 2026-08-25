@@ -76,6 +76,18 @@ EditScore returns each component out of ten and `overall` as their geometric mea
 score is in 0..10. A matching instruction scored 4.29 on a pair of ANNY views and a nonsense
 instruction on the same pair scored 0.0.
 
+The components are recorded rather than only their mean, because the mean is what the two
+runs agree on and the components are where they differ. These sat in the chart beside this
+entry until the chart was removed, so they are written out here instead.
+
+| instruction              | prompt following | consistency | perceptual quality | overall |
+| ------------------------ | ---------------- | ----------- | ------------------ | ------- |
+| a matching instruction   | 10.0             | 9.2         | 2.0                | 4.29    |
+| nonsense, the same pair  | 0.0              | 10.0        | 2.0                | 0.00    |
+
+Consistency rising to 10.0 on the nonsense run is the tell: an edit that was not asked for
+was not made, so the pair is maximally consistent and the score is correctly zero.
+
 The asymmetry is a rule rather than an oversight. A quantised generator does not
 write corpus data; a quantised verifier may, because condition 5 is about what
 produces the corpus and a scorer produces a number.
