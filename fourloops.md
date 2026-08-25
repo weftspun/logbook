@@ -56,6 +56,26 @@ from rather than decoration.
 | EditScore at 1024x1024 | NF4       | 8.60 GiB                | does not, hence a pixel cap of 262144 |
 | OmniGen2               | bf16      | about 17 GiB of weights | no quantised path is offered          |
 
+### Measured on the desk, 2026-08-24
+
+The table above was read out of the scripts. These were measured by running them.
+
+| what ran                           | weights   | peak       | seconds  |
+| ---------------------------------- | --------- | ---------- | -------- |
+| OmniGen2 bf16, 1024x1024, 30 steps | 14.75 GiB | 17.14 GiB  | 131      |
+| OmniGen2 NF4, same input and seed  | 4.33 GiB  | 6.72 GiB   | 133      |
+| EditScore NF4, 512x512             |           | 6.7506 GiB | 28 to 36 |
+
+Four bits bought memory and not speed: 133 s against 131 s, because dequantisation costs
+about what the narrower reads save on this card. The NF4 peak of 6.72 GiB sits under the
+UGen300's 8 GB, which is 7.45 GiB if that number is decimal, leaving 0.73 GiB for
+everything else on the module. Fitting the memory is necessary and not sufficient: the
+device runs a fixed operator set, and nothing has censused this graph against it.
+
+EditScore returns each component out of ten and `overall` as their geometric mean, so a
+score is in 0..10. A matching instruction scored 4.29 on a pair of ANNY views and a nonsense
+instruction on the same pair scored 0.0.
+
 The asymmetry is a rule rather than an oversight. A quantised generator does not
 write corpus data; a quantised verifier may, because condition 5 is about what
 produces the corpus and a scorer produces a number.
