@@ -336,6 +336,43 @@
   </section>
 
   <section>
+    <h2>What the first real run measured</h2>
+    <p class="body">
+      Everything above was written before a card was switched on. Two EditScore calls have now
+      run, and they moved one number and killed one assumption.
+    </p>
+    <div class="tscroll" tabindex="0">
+      <table>
+        <thead><tr><th>What was run</th><th>prompt following</th><th>consistency</th><th>perceptual quality</th><th><code>overall</code></th></tr></thead>
+        <tbody>
+          <tr><td class="stage">a matching instruction</td><td>10.0</td><td>9.2</td><td>2.0</td><td>4.29</td></tr>
+          <tr><td class="stage">a nonsense instruction, same pair</td><td>0.0</td><td>10.0</td><td>2.0</td><td>0.00</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="body">
+      Peak VRAM was <strong>6.7506 GiB</strong> at 512x512, against the 6.75 GiB this document
+      already cited from the scoring script. That is the one number here that was confirmed
+      rather than corrected.
+    </p>
+    <div class="gapbox">
+      <h2>The scale is 0 to 10, and the router assumed 0 to 1</h2>
+      <p>
+        The components are each scored out of ten and <code>overall</code> is their geometric
+        mean, so a score lands in 0..10 and not 0..1. Loop four's threshold has now been wrong
+        twice for the same reason: first as a variance against 0.15, which almost never fired,
+        and now as a standard deviation on a range ten times larger, where it fires on almost
+        anything.
+      </p>
+      <p>
+        A constant compared against an assumed range is the defect, not the constant. The
+        router becomes scale-free — spread over mean — and the threshold is set from measured
+        view scores rather than from a third guess.
+      </p>
+    </div>
+  </section>
+
+  <section>
     <h2>The router is a relation, not a branch</h2>
     <p class="body">
       Loop 4 chooses between editing the latent and editing a view, and the choice is recorded
