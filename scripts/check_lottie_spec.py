@@ -84,13 +84,33 @@ def self_test(doc, schema):
     return 1 if bad else 0
 
 
+SUFFIX = ".lot"
+
+
+def check_suffix(path) -> list:
+    """A Lottie is named .lot, and a .json beside it is a data file.
+
+    The animation this gate was written for shipped as `anny-keypoints-multiview.json`,
+    next to `anny-keypoint-colours.json`, which is a colour table. One extension for two
+    kinds of file makes the animation findable only by opening it.
+    """
+    import os
+    if os.path.splitext(str(path))[1].lower() != SUFFIX:
+        return [f"{path}: a Lottie is named {SUFFIX}, and this is not"]
+    return []
+
+
 def main(argv):
     args = [a for a in argv[1:] if not a.startswith("--")]
     if not args:
-        print("usage: check_lottie_spec.py <animation.json> [--self-test]")
+        print("usage: check_lottie_spec.py <animation.lot> [--self-test]")
         return 2
+    problems = check_suffix(args[0])
+    for problem in problems:
+        print(f"  BAD  {problem}")
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     rc, doc = check(args[0], schema)
+    rc |= 1 if problems else 0
     if "--self-test" in argv[1:]:
         print()
         rc |= self_test(doc, schema)
