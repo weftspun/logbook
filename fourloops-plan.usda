@@ -16,7 +16,7 @@
             "3-interactor/voxhammer-image-mesh-editing/server.py",
             "3-interactor/pixal3d-image-to-textured-mesh/server.py",
             "CLAUDE.md",
-            "2-contract/logbook/fourloops.md",
+            "2-contract/logbook/logbook-fourloops-first-runs.md",
         ]
         string[] stateVocabulary = ["exists", "build", "measure", "stub", "blocked"]
         string[] sizeVocabulary = ["XS", "S", "M", "L", "XL"]

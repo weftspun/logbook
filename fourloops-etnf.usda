@@ -15,7 +15,7 @@
             "1-transport/rf-detr-mcp/server.py",
             "3-interactor/voxhammer-image-mesh-editing/server.py",
             "CLAUDE.md",
-            "2-contract/logbook/fourloops.md",
+            "2-contract/logbook/logbook-fourloops-first-runs.md",
         ]
         string[] relationKindVocabulary = ["interned", "spine", "satellite", "measured"]
         string[] stateVocabulary = ["exists", "build", "measure", "stub", "blocked"]
