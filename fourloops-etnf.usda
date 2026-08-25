@@ -510,8 +510,11 @@ def Scope "FourLoopsEtnf"
         def "Render"
         {
             custom uniform token state = "exists"
-            custom string note = "Plus the sidecar the hash comes from."
-            rel writes = </FourLoopsEtnf/Spine/Artifacts>
+            custom string note = "Plus the sidecar the hash comes from. The sweep is written here rather than by the scorer, because a sweep exists once the frames do: a fit, one generator, one view count. Scoring reads it and does not create it, which is what stops a scored view from being the only record that a sweep happened."
+            rel writes = [
+                </FourLoopsEtnf/Spine/Artifacts>,
+                </FourLoopsEtnf/Measured/Sweeps>,
+            ]
         }
 
         def "EditScore"
