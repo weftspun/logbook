@@ -62,6 +62,60 @@ repos:
         pass_filenames: false
         stages: [manual]
 
+      # The four loops are described twice on purpose: `fourloops-plan.usda` is the task
+      # graph and `fourloops-etnf.usda` is the schema those tasks read and write. Two
+      # documents about one thing drift, and neither drift appears in a diff of the file
+      # being edited, because the other file is the one that changed.
+      #
+      # `stages: [manual]` for the same reason as `rfd107a-plan` above: both gates read the
+      # sources their layers name, and those sources sit in `6-datasource`, `3-interactor`
+      # and `7-service`. CI checks this repository out on its own, so the sources are simply
+      # absent there. A script that notices a missing source and passes anyway reports a
+      # green run for a check it did not perform. In a goal-manifest workspace:
+      #
+      #     prek run fourloops-plan --hook-stage manual --all-files
+      #     prek run fourloops-etnf --hook-stage manual --all-files
+      - id: fourloops-plan
+        name: the four-loop plan agrees with its graph, its sources and the schema layer
+        entry: python scripts/check_fourloops_plan.py
+        language: system
+        files: ^(fourloops-plan\.usda|fourloops-etnf\.usda|scripts/check_fourloops_plan\.py)$
+        pass_filenames: false
+        stages: [manual]
+
+      # A relationship target that names no prim composes without complaint, and neither
+      # `usdchecker` nor `check_usd_valid.py` reports it. That is the hole this gate covers,
+      # along with the ETNF rules the layer argues for and could violate itself: a derivable
+      # column stored anyway, and an emitted relation no stage writes. The second found
+      # `ArmUnavailable`, described in the layer and written by nothing.
+      - id: fourloops-etnf
+        name: the ETNF schema resolves, stores nothing derivable, and has a writer each
+        entry: python scripts/check_fourloops_etnf.py
+        language: python
+        additional_dependencies: ["usd-core==26.8"]
+        files: ^(fourloops-etnf\.usda|scripts/check_fourloops_etnf\.py)$
+        pass_filenames: false
+        stages: [manual]
+
+      # The controls for both, which need no workspace: each builds its own layer in a
+      # temporary directory. Half of them must FAIL on known-broken input, because a check
+      # that cannot fail certifies the defect. These run on every commit that touches a
+      # gate, which is what makes the manual hooks above worth having.
+      - id: fourloops-plan-self-test
+        name: the four-loop plan gate still fails on a plan that contradicts itself
+        entry: python scripts/check_fourloops_plan.py --self-test
+        language: system
+        files: ^scripts/check_fourloops_plan\.py$
+        pass_filenames: false
+
+      - id: fourloops-etnf-self-test
+        name: the ETNF gate still fails on a dangling target and a stored derivable column
+        entry: python scripts/check_fourloops_etnf.py --self-test
+        language: python
+        additional_dependencies: ["usd-core==26.8"]
+        files: ^scripts/check_fourloops_etnf\.py$
+        pass_filenames: false
+
       # A comparison joined twice -- "five soda cans along the axis and against three across it"
       # -- reads past a first pass and shipped in `check_view_selection.py`. The two prose
       # gates beside this one, `check_household_units.exs` and `check_prose_tropes.exs`, are
