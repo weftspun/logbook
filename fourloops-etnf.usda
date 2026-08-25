@@ -9,7 +9,6 @@ def Scope "FourLoopsEtnf" (
     customData = {
         string plan = "fourloops-etnf"
         string state = "build"
-        string prose = "2-contract/logbook/fourloops-etnf.html"
         string graph = "2-contract/logbook/fourloops-plan.usda"
         string thesis = "Four pipelines propose something, score it against whatever conditioned it, repair, and go round again. They share one shape, so they share one schema. This layer is every input the four take, written as relations: interned vocabularies, satellites instead of nullable columns, no NULLs, and nothing stored that can be computed. The interesting half is what is deliberately absent, and it is under absent rather than left out."
         string[] sources = [
