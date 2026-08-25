@@ -1,0 +1,368 @@
+#usda 1.0
+(
+    defaultPrim = "FourLoops"
+    doc = """The four scoring loops as a stage, so the plan is data rather than prose.
+
+WHAT THIS IS. Four pipelines share one shape: propose an artifact, score it against what
+conditioned it, repair, repeat. Each loop below names its propose stage, its score stage,
+its repair arms and the artifact that travels between them. The order is an `int order`
+and the dependencies are relationships, so a consumer can ask whether a step comes after
+the steps it needs. RFD 1035 makes OpenUSD the internal format, and a plan is a graph.
+
+WHAT IT IS NOT. It is not a second copy of the notebooks. What lives here is the ordering,
+the interfaces and the counts. The prose lives in the notebooks under
+7-service/service-livebook/notebooks, where it is next to the cell that runs.
+
+THE COUNTS ARE MEASURED, NOT ESTIMATED. Every number under /FourLoops/Quantities was read
+out of a script or a run in this workspace, and each carries the file it came from in its
+own doc string. Two of them are ceilings that decide settings rather than describe them:
+EditScore peaks at 6.75 GiB at 512x512 and 8.60 GiB at 1024x1024, which is why
+score_edits.py defaults --max-pixels to 262144.
+
+ONE ARM IS NOT WIRED, AND THE PLAN SAYS SO RATHER THAN IMPLYING OTHERWISE. Loop four
+repairs either by editing the latent with VoxHammer or by editing the view with OmniGen2.
+VoxHammer's server today solves and dispatches its seven-step plan and raises
+NotImplementedError on every step outside stub mode. The arm is therefore a contract that
+can be exercised and a repair that cannot, and `state = "stub"` is how that is recorded.
+
+upAxis and metersPerUnit are here because usdchecker reports their absence as errors, and
+they mean nothing to a task graph. They match what the body layers write, so a consumer
+that does compose the two finds them agreeing."""
+    metersPerUnit = 1
+    upAxis = "Z"
+    customLayerData = {
+        string plan = "fourloops"
+        string state = "build"
+        string[] sources = [
+            "7-service/service-livebook/priv/python/weft_loop.py",
+            "6-datasource/anny-render-corpus/score_edits.py",
+            "6-datasource/anny-render-corpus/gen_posed_from_reference.py",
+            "6-datasource/anny-render-corpus/render_view.py",
+            "3-interactor/pose-consensus/python/soma_referee.py",
+            "1-transport/rf-detr-mcp/server.py",
+            "3-interactor/voxhammer-image-mesh-editing/server.py",
+            "3-interactor/pixal3d-image-to-textured-mesh/server.py",
+            "CLAUDE.md",
+        ]
+        string[] stateVocabulary = ["exists", "build", "measure", "stub", "blocked"]
+        string[] sizeVocabulary = ["XS", "S", "M", "L", "XL"]
+        int[] sizePoints = [1, 2, 3, 5, 8]
+    }
+)
+
+def Scope "FourLoops" (
+    doc = "Propose, score with EditScore, repair, repeat. Four loops, one harness."
+)
+{
+    def Scope "Quantities"
+    {
+        custom int cocoKeypoints = 17 (
+            doc = "RF-DETR emits 17. rf-detr-mcp/server.py names them at module scope."
+        )
+        custom int annyKeypointAssetPoints = 23 (
+            doc = "ANNY's coco.pth emits COCO-17 plus 6 foot points. Any comparison with the detector takes an explicit 17-subset."
+        )
+        custom int basemeshVertices = 19158 (
+            doc = "render_corpus.py asserts this topology. The 13718-vertex body submodel fails silently in one direction."
+        )
+        custom int hammersleyViews = 8 (
+            doc = "render_view.py --views default, and Pixal3D's own sphere_hammersley_sequence."
+        )
+        custom float editscorePeakGib512 = 6.75 (
+            doc = "score_edits.py measured; fits the 8 GiB budget."
+        )
+        custom float editscorePeakGib1024 = 8.6 (
+            doc = "score_edits.py measured; does not fit, which is why --max-pixels defaults to 262144."
+        )
+        custom int editscoreMaxPixels = 262144
+        custom int omnigen2WeightsGib = 17 (
+            doc = "bf16, the only precision gen_posed_from_reference.py offers. Condition 5 forbids the quantised alternative for a generator."
+        )
+        custom int deskVramGib = 24 (
+            doc = "RTX 3090. Every loop here runs on the desk, not a rented pod."
+        )
+        custom int voxhammerPlanSteps = 7
+        custom float refereeImpossibleResidual = 0.02 (
+            doc = "soma_referee.py, as a fraction of stature."
+        )
+        custom float refereeHandResidual = 0.006
+        custom float refereeChainGrowthLimit = 1.6
+    }
+
+    def Scope "Stages" (
+        doc = "Each stage is one command or one endpoint. The loops below reference these rather than restating them."
+    )
+    {
+        def "Keypoints" (
+            doc = "rf-detr-mcp analyze_pose. CPU by design. Returns 17 joints with confidences."
+        )
+        {
+            custom uniform token kind = "detector"
+            custom uniform token state = "exists"
+            custom string entry = "1-transport/rf-detr-mcp/server.py:analyze_pose"
+            custom string outputs = "17 joints, pixels and confidence"
+        }
+
+        def "AnnyFit" (
+            doc = "AnnyInverter solves a pose from target vertices. anny_rig.py is the canonical builder every consumer must use."
+        )
+        {
+            custom uniform token kind = "fit"
+            custom uniform token state = "build"
+            custom string entry = "3-interactor/anny/src/anny/anny_inverter.py:AnnyInverter"
+            custom string outputs = "pose, macro, v_hat"
+        }
+
+        def "Render" (
+            doc = "Mitsuba render at a sphere_hammersley index, with a sidecar carrying yaw, pitch, radius, fov, eye, normalisation and sha256. llvm_ad_rgb at one thread is the reproducible variant; metal_ad_rgb is 60x faster and is not."
+        )
+        {
+            custom uniform token kind = "render"
+            custom uniform token state = "exists"
+            custom string entry = "6-datasource/anny-render-corpus/render_view.py"
+            custom string outputs = "png and json sidecar"
+        }
+
+        def "EditScore" (
+            doc = """The scorer for every loop. The library takes ([source, edited], instruction) and returns overall.
+
+The CLI beside it derives its instruction from the FILENAME and silently skips a file
+matching no key, which reads exactly like a pass. The harness calls the library directly
+for that reason."""
+        )
+        {
+            custom uniform token kind = "scorer"
+            custom uniform token state = "exists"
+            custom string entry = "editscore.EditScore.evaluate"
+            custom string base = "Qwen/Qwen3-VL-8B-Instruct"
+            custom string adapter = "EditScore/EditScore-Qwen3-VL-8B-Instruct"
+            custom string precision = "nf4"
+            custom string precisionNote = "Quantisation is permitted for a verifier and forbidden for a generator. This is a verifier."
+        }
+
+        def "OmniGen2" (
+            doc = "The 2D repair arm, and loop two's propose. bf16, no depth control, conditioning is input_images=[pose, appearance]."
+        )
+        {
+            custom uniform token kind = "generator"
+            custom uniform token state = "exists"
+            custom string entry = "6-datasource/anny-render-corpus/omnigen2_edit.py"
+            custom string environment = "pixi -e omnigen2"
+        }
+
+        def "CycleGan" (
+            doc = "Style transfer, monet or ukiyoe. Every result carries checkpoint_sha256, and a missing checkpoint is a 503 rather than a fallback."
+        )
+        {
+            custom uniform token kind = "generator"
+            custom uniform token state = "exists"
+            custom string entry = "3-interactor/cyclegan-style-transfer/server.py:/predict"
+        }
+
+        def "Pixal3D" (
+            doc = "Two calls. /predict returns an opaque latent state plus Hammersley views; /extract turns the state into glb and a USD layer. The extract is deferred until a score clears its target."
+        )
+        {
+            custom uniform token kind = "generator"
+            custom uniform token state = "exists"
+            custom string entry = "3-interactor/pixal3d-image-to-textured-mesh/server.py"
+            custom string outputs = "state, views, cameras, then glb and layer"
+        }
+
+        def "VoxHammer" (
+            doc = """The latent repair arm for loop four, and the one that is not wired.
+
+Its seven-step plan solves and dispatches in order, and every step raises
+NotImplementedError outside WEFTSPUN_STUB=1. The contract can be exercised today and the
+edit cannot. It also takes a mesh rather than Pixal3D's latent, so the arm passes through
+/extract first, which is a second reason it is not a latent edit yet."""
+        )
+        {
+            custom uniform token kind = "editor"
+            custom uniform token state = "stub"
+            custom string entry = "3-interactor/voxhammer-image-mesh-editing/server.py:/predict"
+            custom string inputs = "mesh, reference, region, seed"
+        }
+
+        def "Referee" (
+            doc = "The pose-consensus referee. Pure numpy, so it imports into a Python cell. A missing region is NOT_RUN, never a pass."
+        )
+        {
+            custom uniform token kind = "gate"
+            custom uniform token state = "exists"
+            custom string entry = "3-interactor/pose-consensus/python/soma_referee.py:referee"
+            custom string[] verdicts = ["FITS", "IMPOSSIBLE", "HANDS_UNTRUSTED", "NOT_RUN"]
+        }
+
+        def "Harness" (
+            doc = "weft_loop.run, and the negative controls beside it. Holds the baseline, raises on an unmet precondition, and refuses a round that wrote no artifact."
+        )
+        {
+            custom uniform token kind = "harness"
+            custom uniform token state = "measure"
+            custom string entry = "7-service/service-livebook/priv/python/weft_loop.py"
+            custom string controls = "7-service/service-livebook/priv/python/test_weft_loop.py"
+        }
+    }
+
+    def Scope "Loops"
+    {
+        def "L1KeypointsToAnny" (
+            doc = "A photograph, its detected keypoints, a rig fitted to them, a render of that rig, and a score of the render against the photograph. The referee is the second opinion, and it answers a question EditScore cannot: whether the body could hold the pose at all."
+        )
+        {
+            custom int order = 1
+            custom uniform token size = "L"
+            custom uniform token state = "build"
+            custom string artifact = "render png"
+            rel propose = [
+                </FourLoops/Stages/Keypoints>,
+                </FourLoops/Stages/AnnyFit>,
+                </FourLoops/Stages/Render>,
+            ]
+            rel score = [
+                </FourLoops/Stages/EditScore>,
+                </FourLoops/Stages/Referee>,
+            ]
+            rel repair = </FourLoops/Stages/AnnyFit>
+            custom string hazard = "The detector emits 17 joints and the render asset emits 23. The comparison takes an explicit subset or it compares different things."
+        }
+
+        def "L2ImageToOmniGen2" (
+            doc = "An image, an instruction, an OmniGen2 edit, a score, and another edit. The only loop whose two halves already run daily in the corpus pipeline, so it is the one to prove first."
+        )
+        {
+            custom int order = 2
+            custom uniform token size = "M"
+            custom uniform token state = "build"
+            custom string artifact = "edited png"
+            rel propose = </FourLoops/Stages/OmniGen2>
+            rel score = </FourLoops/Stages/EditScore>
+            rel repair = </FourLoops/Stages/OmniGen2>
+            custom string hazard = "The instruction comes from a text input rather than a filename, because a filename that matches no key is skipped without a word."
+        }
+
+        def "L3StylizedToOmniGen2" (
+            doc = "Loop two with a style transfer in front of it. The checkpoint hash travels with the stylized image into the provenance record, which is condition 1 of the generated-synthetic rules."
+        )
+        {
+            custom int order = 3
+            custom uniform token size = "M"
+            custom uniform token state = "build"
+            custom string artifact = "edited png"
+            rel propose = [
+                </FourLoops/Stages/CycleGan>,
+                </FourLoops/Stages/OmniGen2>,
+            ]
+            rel score = </FourLoops/Stages/EditScore>
+            rel repair = </FourLoops/Stages/OmniGen2>
+            custom string hazard = "Anything derived from val2017 inherits the holdout. A stylized set built from it is evaluation only, twice over."
+        }
+
+        def "L4LatentToPixal3D" (
+            doc = """A latent, its Hammersley views, a score per view, and two repair arms chosen by what the score says.
+
+THE ROUTER IS THE POINT. A low mean across views with low variance is an appearance
+failure, and the repair is to edit the view in 2D with OmniGen2 and re-enter Pixal3D. A
+high variance across views is a geometry failure, because a shape that is wrong along one
+axis scores well from the view that hides it, and the repair is to edit the latent with
+VoxHammer instead. Scoring one hand-picked front view cannot tell these apart, which is
+why the views come from the camera sequence rather than from a choice.
+
+The VoxHammer arm is stubbed today. The router still selects it, and the notebook reports
+that it selected an arm that cannot run, rather than quietly taking the other one."""
+        )
+        {
+            custom int order = 4
+            custom uniform token size = "XL"
+            custom uniform token state = "build"
+            custom string artifact = "latent state, then views, then glb"
+            rel propose = </FourLoops/Stages/Pixal3D>
+            rel score = </FourLoops/Stages/EditScore>
+            rel repair = [
+                </FourLoops/Stages/VoxHammer>,
+                </FourLoops/Stages/OmniGen2>,
+            ]
+            custom string routerRule = "high view variance selects the latent arm, low mean with low variance selects the 2D arm"
+            custom string hazard = "VoxHammer raises NotImplementedError outside stub mode, and it takes a mesh rather than the latent, so the arm passes through /extract first."
+        }
+    }
+
+    def Scope "Tasks"
+    {
+        def "T01Harness" (
+            doc = "weft_loop.py and its negative controls. Done: nine controls, five of them rejections, zero failures."
+        )
+        {
+            custom int order = 1
+            custom uniform token size = "M"
+            custom uniform token state = "exists"
+            rel produces = </FourLoops/Stages/Harness>
+        }
+
+        def "T02Notebook2" (
+            doc = "Loop two end to end on one COCO reference, three rounds, with the baseline row present and a deliberately wrong instruction scoring below it."
+        )
+        {
+            custom int order = 2
+            custom uniform token size = "M"
+            custom uniform token state = "build"
+            rel needs = </FourLoops/Tasks/T01Harness>
+            rel realizes = </FourLoops/Loops/L2ImageToOmniGen2>
+        }
+
+        def "T03Notebook3" (
+            doc = "Loop three, which is loop two with CycleGan in front and the checkpoint hash carried through."
+        )
+        {
+            custom int order = 3
+            custom uniform token size = "S"
+            custom uniform token state = "build"
+            rel needs = </FourLoops/Tasks/T02Notebook2>
+            rel realizes = </FourLoops/Loops/L3StylizedToOmniGen2>
+        }
+
+        def "T04Notebook1" (
+            doc = "Loop one, which needs the 17-to-23 subset written down and the 19158-vertex topology pinned before it can be trusted."
+        )
+        {
+            custom int order = 4
+            custom uniform token size = "L"
+            custom uniform token state = "build"
+            rel needs = </FourLoops/Tasks/T01Harness>
+            rel realizes = </FourLoops/Loops/L1KeypointsToAnny>
+        }
+
+        def "T05Notebook4" (
+            doc = "Loop four, including the router and the stubbed arm it can select."
+        )
+        {
+            custom int order = 5
+            custom uniform token size = "L"
+            custom uniform token state = "build"
+            rel needs = </FourLoops/Tasks/T01Harness>
+            rel realizes = </FourLoops/Loops/L4LatentToPixal3D>
+        }
+
+        def "T06Serve" (
+            doc = "LIVEBOOK_HOME set to the notebooks directory and a mix alias that starts the server with it, so all four appear on the home screen."
+        )
+        {
+            custom int order = 6
+            custom uniform token size = "XS"
+            custom uniform token state = "build"
+            rel needs = </FourLoops/Tasks/T01Harness>
+        }
+
+        def "T07WireVoxHammer" (
+            doc = "The latent arm, which is a different piece of work from this plan and is named so that loop four's router is not mistaken for a working repair on both sides."
+        )
+        {
+            custom int order = 7
+            custom uniform token size = "XL"
+            custom uniform token state = "blocked"
+            rel needs = </FourLoops/Tasks/T05Notebook4>
+            rel produces = </FourLoops/Stages/VoxHammer>
+        }
+    }
+}
