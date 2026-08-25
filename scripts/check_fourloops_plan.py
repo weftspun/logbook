@@ -1,7 +1,7 @@
 """Check `fourloops-plan.usda` against its sources, against the chart, and against itself.
 
 WHY THIS EXISTS. Three documents describe the same four loops: the stage, the chart beside
-it (`fourloops-etnf.html`), and the code the two are about. Nothing stops them drifting
+it (`fourloops-etnf.usda`), and the code the two are about. Nothing stops them drifting
 apart except something that reads all three, so this reads all three.
 
 WHAT IT CHECKS, and why each is separate.
@@ -19,10 +19,10 @@ WHAT IT CHECKS, and why each is separate.
    `check-rfd-structure.py` uses for RFD 1000's state list and `check_rfd107a_plan.py` uses
    for RFD 107a's.
 
-4. THE CHART AGREES. Every relation the chart names in a `<code>` element that looks like a
-   relation must appear in the stage's own vocabulary, and the stage's stage-prims must all
-   appear in the chart. Two documents that disagree about which relations exist is the
-   drift this pair is most likely to develop.
+4. THE CHART AGREES, IN ONE DIRECTION. Every stage the plan declares must be mentioned in
+   the chart. The reverse check existed while the chart was HTML and was deleted when it
+   became a layer: see the note beside CODE_RE. A stage nobody described is the drift that
+   remains possible.
 
 WHAT IT DOES NOT CHECK. Whether the plan is a good plan, and whether the counts are right.
 Only that the artefacts agree. A wrong number stated identically in both passes, which is
@@ -39,7 +39,7 @@ import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 DEFAULT_STAGE = HERE.parent / "fourloops-plan.usda"
-DEFAULT_CHART = HERE.parent / "fourloops-etnf.html"
+DEFAULT_CHART = HERE.parent / "fourloops-etnf.usda"
 
 PRIM_RE = re.compile(r'^\s*def\s+(?:\w+\s+)?"([A-Za-z0-9_]+)"', re.M)
 # A TYPELESS `def "Name"`, which is what a task is. Allowing `def Scope "Name"` here swept
@@ -51,7 +51,16 @@ INT_RE = re.compile(r"custom int (\w+) = (\d+)")
 FLOAT_RE = re.compile(r"custom float (\w+) = ([\d.]+)")
 REL_TARGET_RE = re.compile(r"</([A-Za-z0-9_/]+)>")
 SOURCES_RE = re.compile(r"string\[\] sources = \[(.*?)\]", re.S)
-CODE_RE = re.compile(r"<code>([a-z0-9_]+)</code>")
+# ONE DIRECTION SURVIVED THE CHART BECOMING A LAYER, AND THE OTHER WAS DELETED RATHER THAN
+# LOOSENED. While the chart was HTML its `<code>` spans named relations, so "a name the chart
+# uses that the plan does not have" was a real check. A layer has no `<code>`: reading every
+# quoted lowercase token instead reported 29 problems on a clean pair -- `yaw`, `view_mean`,
+# every column name -- because the two layers no longer share a namespace. The chart's prims
+# are relations and the plan's are stages.
+#
+# What remains checkable is the direction that can still drift: a stage in the plan that the
+# chart never mentions is a stage nobody described. That one is kept and its control kept
+# with it.
 
 # The relation names the chart is allowed to mention without the stage naming them: these
 # are columns and vocabularies rather than pipeline stages, and the stage is a task graph.
@@ -212,12 +221,6 @@ def check_counts(text, root, problems):
 
 
 def check_chart(text, chart_text, problems):
-    stage_names = {n.lower() for n in prim_names(text)}
-    for name in sorted(set(CODE_RE.findall(chart_text))):
-        if name in CHART_ONLY:
-            continue
-        if name.lower() not in stage_names:
-            problems.append(f"the chart names {name!r} and the stage has no such prim")
     for prim in sorted(prim_names(text)):
         if prim in {"FourLoops", "Quantities", "Stages", "Loops", "Tasks"}:
             continue
@@ -344,10 +347,8 @@ def self_test():
          {"stage": GOOD.replace("rel score = </FourLoops/Stages/EditScore>", "custom int spare = 0")}, True),
         ("a loop no task realizes",
          {"stage": GOOD.replace("rel realizes = </FourLoops/Loops/L1Only>", "custom int spare = 1")}, True),
-        ("a chart naming a stage the layer does not have",
-         {"chart": "<p><code>voxhammer</code></p>"}, True),
         ("a stage prim the chart never mentions",
-         {"chart": "<p><code>scores</code></p>"}, True),
+         {"chart": "a chart that mentions nothing"}, True),
     ]
 
     ok = True
