@@ -80,10 +80,10 @@ The components are recorded rather than only their mean, because the mean is wha
 runs agree on and the components are where they differ. These sat in the chart beside this
 entry until the chart was removed, so they are written out here instead.
 
-| instruction              | prompt following | consistency | perceptual quality | overall |
-| ------------------------ | ---------------- | ----------- | ------------------ | ------- |
-| a matching instruction   | 10.0             | 9.2         | 2.0                | 4.29    |
-| nonsense, the same pair  | 0.0              | 10.0        | 2.0                | 0.00    |
+| instruction             | prompt following | consistency | perceptual quality | overall |
+| ----------------------- | ---------------- | ----------- | ------------------ | ------- |
+| a matching instruction  | 10.0             | 9.2         | 2.0                | 4.29    |
+| nonsense, the same pair | 0.0              | 10.0        | 2.0                | 0.00    |
 
 Consistency rising to 10.0 on the nonsense run is the tell: an edit that was not asked for
 was not made, so the pair is maximally consistent and the score is correctly zero.
