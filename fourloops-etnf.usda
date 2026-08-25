@@ -117,6 +117,19 @@ def Scope "FourLoopsEtnf"
             custom int rowCount = 5
         }
 
+        def "CameraGenerators"
+        {
+            custom uniform token kind = "interned"
+            custom string primaryKey = "generator_id"
+            custom string[] columns = ["generator_id int8 PK", "name string", "view_count int16", "derives string"]
+            custom int rowCount = 2
+            custom string[] rows = [
+                "1 sphere_hammersley_sequence 0 sphere_hammersley_sequence(view_index, view_count)",
+                "2 grid96 96 weft_loop.grid_cameras()[view_index]",
+            ]
+            custom string note = "TWO GENERATORS, AND THE SECOND ARRIVED WITHOUT THIS ROW, WHICH IS THE DEFECT THIS FIXES. `view_scores` keyed on `hammersley_index` and `Absent/CameraPose` said a camera is derivable from the sequence. That is true of one generator and false of the other: a grid camera is the pose at that index of an enumerated 4 by 8 by 3 table, and no argument to the sequence produces it. An index without the generator that issued it does not name a camera. view_count is 0 for the sequence because it is a parameter of the sweep rather than of the generator, and 96 for the grid because the grid IS 96."
+        }
+
         def "Topologies"
         {
             custom uniform token kind = "interned"
@@ -250,14 +263,26 @@ def Scope "FourLoopsEtnf"
             ]
         }
 
+        def "Sweeps"
+        {
+            custom uniform token kind = "measured"
+            custom string primaryKey = "sweep_id"
+            custom string[] columns = ["sweep_id int64 PK", "fit_id int64 FK", "generator_id int8 FK", "view_count int16"]
+            custom string note = "THE CHAIN THIS COMPLETES IS POSE TO GENERATOR TO VIEWS, AND IT WAS NOT WRITTEN DOWN. A fit produced a pose, something turned that pose into a set of cameras, and the scores hung off artifacts with nothing saying which pose or which generator they came from. Both generators were built and used before this row existed. One sweep is one fit seen through one generator, so the generator and the count sit here once rather than on every scored view."
+            rel foreignKeys = [
+                </FourLoopsEtnf/Measured/Fits>,
+                </FourLoopsEtnf/Interned/CameraGenerators>,
+            ]
+        }
+
         def "ViewScores"
         {
             custom uniform token kind = "measured"
-            custom string primaryKey = "artifact_id, hammersley_index"
-            custom string[] columns = ["artifact_id char64 FK", "latent_id char64 FK", "hammersley_index int16", "view_count int16", "overall float32"]
-            custom string cameraSource = "sphere_hammersley_sequence"
-            custom string note = "The index and the count, and no camera at all. Yaw, pitch, radius and eye stored beside the index are free to disagree with the sequence that produced them the first time anybody changes the view count."
+            custom string primaryKey = "sweep_id, view_index"
+            custom string[] columns = ["sweep_id int64 FK", "view_index int16", "artifact_id char64 FK", "latent_id char64 FK", "overall float32"]
+            custom string note = "The sweep, the index, and no camera at all. Yaw, pitch, radius and eye stored beside the index are free to disagree with whatever produced them the first time anybody changes the view count. `hammersley_index` and `view_count` stood here and are gone: a column named after one generator cannot hold the other's index, and the count is a property of the sweep rather than of each scored view."
             rel foreignKeys = [
+                </FourLoopsEtnf/Measured/Sweeps>,
                 </FourLoopsEtnf/Spine/Artifacts>,
                 </FourLoopsEtnf/Spine/Latents>,
             ]
@@ -320,7 +345,8 @@ def Scope "FourLoopsEtnf"
         def "CameraPose"
         {
             custom string[] columns = ["yaw", "pitch", "radius", "eye"]
-            custom string derivedFrom = "sphere_hammersley_sequence(hammersley_index, view_count)"
+            custom string derivedFrom = "camera_generators[sweeps.generator_id].derives, applied to view_index and sweeps.view_count"
+            custom string wasWrong = "This read `sphere_hammersley_sequence(hammersley_index, view_count)` and named one generator. A grid camera is not reachable from that function at any arguments, so the absence was only justified while one generator existed."
             rel wouldHaveSatOn = </FourLoopsEtnf/Measured/ViewScores>
         }
 

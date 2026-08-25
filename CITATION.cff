@@ -207,4 +207,32 @@ references:
       reachable with operators that already compile and the exp half does not,
       which is the opposite of what the paper's error figures alone suggest.
     license: MIT
+  - type: software
+    title: "Qwen-Image-Edit-2511-Multiple-Angles-LoRA"
+    authors:
+      - family-names: Odin
+        given-names: Lovis
+      - name: "fal"
+    url: "https://huggingface.co/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA"
+    license: Apache-2.0
+    abstract: >-
+      The source of the camera vocabulary this workspace names views with:
+      8 azimuths at 45 degree steps as front, front-right quarter, right side,
+      back-right quarter, back, back-left quarter, left side and front-left
+      quarter; 4 elevations as low-angle at -30, eye-level at 0, elevated at 30
+      and high-angle at 60; and 3 distances as close-up at 0.6, medium at 1.0
+      and wide at 1.8. `weft_loop.camera_prompt` converts parameters to that
+      prompt and `camera_parameters` converts back, both exactly, with the 96
+      cells enumerated in `test_weft_loop.py` rather than sampled.
 
+      WHAT IS TAKEN IS THE PHRASE TABLE AND NOTHING ELSE. Qwen-Image-Edit 2509
+      and 2511 are blocklisted here, because 20.4B runs on this desk only
+      quantised and quantised it corrupts, and these weights are gated on top of
+      that. Neither is loaded. A vocabulary is text and carries no licence into
+      a corpus, and naming a view the way the ecosystem already names it is the
+      whole benefit.
+
+      Its stated methodology is the 96-pose grid over "3000+ Gaussian Splatting
+      renders", trained on fal's own trainer. The page does not name the engine,
+      the assets or the image count, so the grid is what is reusable and the
+      corpus behind it is not reproducible from what is published.
