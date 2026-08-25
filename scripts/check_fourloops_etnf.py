@@ -38,11 +38,34 @@ WHAT IT CHECKS, and why each is separate.
    a count nobody reviewed. Same pattern as `check_fourloops_plan.py` and, before it,
    `check-rfd-structure.py` for RFD 1000.
 
-   THE DETECTION FLOOR, stated because a check that cannot fail reads exactly like one that
-   passed: integers below `SEARCH_FLOOR` are not searched, and the ones skipped are printed
-   rather than omitted. `4` appears in every Python file ever written, so searching for it
-   certifies nothing. Floats are searched whatever their magnitude, because `0.263` is a
-   measurement where `4` is usually a row count.
+   SMALL INTEGERS ARE CHECKED IN CONTEXT, NOT SKIPPED. The first version of this gate had a
+   detection floor: integers below `SEARCH_FLOOR` went unsearched, because `4` appears in
+   every Python file ever written and matching it certifies nothing. They were printed
+   rather than hidden, but twelve numbers were asserted and not checked, which is a hole in
+   a gate whose whole point is that a number does not live only here.
+
+   The floor is retracted and replaced by three checks that each say something:
+
+   a. `order` values are structural, so they are read as a sequence: 1..N within their
+      scope, no gaps and no repeats. No source search could ever have verified them.
+   b. A `rowCount` beside an authored `rows` list must equal that list's length. The
+      vocabulary is in the layer, so the count is checkable without leaving it.
+   c. Every other small integer must appear in a source NEAR A WORD FROM ITS OWN NAME,
+      spelled as a digit or as an English word. `planSteps = 7` is satisfied by "the same 7
+      steps" and `Regions.rowCount = 5` by "across all five regions"; a bare 7 somewhere in
+      the corpus satisfies neither.
+
+      The word has to name the SUBJECT and not the shape, which is why `STEM_STOPWORDS`
+      exists: `Regions.rowCount = 5` first passed against "the counts from 18 visible and 5
+      occluded", a sentence about joints in a render. The right digit beside the wrong noun
+      is a pass the gate had not earned.
+
+   Anything still unchecked must be named in the layer's `uncheckedIntegers`, which this
+   gate prints and counts, and which fails when it names something that is checked after
+   all. Declared-unchecked is a position somebody took; silently skipped is not.
+
+   Integers at or above the floor keep the plain whole-token search, and floats are searched
+   whatever their magnitude: 19158 and 0.263 mean something on their own, where 5 does not.
 
 WHAT IT DOES NOT CHECK. Whether the schema is a good schema, and whether any of these
 relations exists in a database -- nothing builds one yet. Only that the design is
@@ -72,6 +95,24 @@ RELATION_SCOPES = ("Interned", "Spine", "Satellites", "Measured")
 EMITTED_KINDS = ("spine", "satellite", "measured")
 
 SEARCH_FLOOR = 10
+
+# How far either side of a small integer a word from its own name may sit. 48 characters is
+# about a line of prose in each direction: "the same 7 steps plan.ex" passes, and a 7 three
+# sentences away from the word "step" does not.
+CONTEXT_WINDOW = 48
+
+NUMBER_WORDS = {
+    0: "zero", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+    7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve",
+}
+
+# Words that describe the shape of a datum rather than its subject, and which are therefore
+# no evidence at all in a context window. THIS LIST IS NOT TIDINESS. With `count` left in,
+# `Regions.rowCount = 5` passed against "the counts from 18 visible and 5 occluded", a
+# sentence about joints in a render -- the right digit beside the wrong noun. The gate
+# reported a pass for a number nothing had confirmed, which is the exact failure the context
+# search was written to end.
+STEM_STOPWORDS = {"count", "row", "value", "number", "total", "size", "item", "entry"}
 
 
 def open_layer(path):
@@ -174,7 +215,7 @@ def check_writers(stage, problems):
 
 
 def numbers(stage):
-    """(where, printed value, is_int) for every authored number in the layer.
+    """(prim, attribute name, value, printed form, is_int) for every authored number.
 
     A bool is an int in Python and is skipped: `confirmed = 1` is a flag, and searching the
     sources for "1" would pass against any file at all.
@@ -185,18 +226,86 @@ def numbers(stage):
             if not a.HasAuthoredValue():
                 continue
             value = a.Get()
-            where = f"{prim.GetPath()}.{a.GetName()}"
             if isinstance(value, bool):
                 continue
             if isinstance(value, int):
-                found.append((where, str(value), True))
+                found.append((prim, a.GetName(), value, str(value), True))
             elif isinstance(value, float):
-                found.append((where, repr(round(value, 6)).rstrip("0").rstrip("."), False))
+                printed = repr(round(value, 6)).rstrip("0").rstrip(".")
+                found.append((prim, a.GetName(), value, printed, False))
     return found
 
 
+def check_orders(stage, problems):
+    """`order` values are 1..N within their scope, with no gaps and no repeats.
+
+    This is what replaces searching the sources for 1. An order is a statement about this
+    layer and about nothing else, so no source could have confirmed it; the plan gate
+    learned the same about task order before this file existed.
+    """
+    for scope in stage.GetDefaultPrim().GetChildren():
+        seen = {}
+        for prim in scope.GetChildren():
+            order = attr(prim, "order")
+            if order is not None:
+                seen.setdefault(int(order), []).append(prim.GetName())
+        if not seen:
+            continue
+        if sorted(seen) != list(range(1, len(seen) + 1)):
+            problems.append(
+                f"{scope.GetName()} order values are {sorted(seen)}, and must be 1..{len(seen)}"
+            )
+        for value, names in sorted(seen.items()):
+            if len(names) > 1:
+                problems.append(
+                    f"{scope.GetName()} gives order {value} to {len(names)}: {', '.join(names)}"
+                )
+
+
+def check_row_counts(stage, problems):
+    """A `rowCount` beside an authored `rows` list equals that list's length."""
+    for path, prim in sorted(relations(stage).items()):
+        rows, count = attr(prim, "rows"), attr(prim, "rowCount")
+        if rows is None or count is None:
+            continue
+        if len(rows) != int(count):
+            problems.append(f"{path} says rowCount {int(count)} and lists {len(rows)} rows")
+
+
+def counted_structurally(prim, name):
+    """True when a check other than the source search already covers this integer."""
+    return name == "order" or (name == "rowCount" and attr(prim, "rows") is not None)
+
+
+def name_stems(prim, name):
+    """Words drawn from the prim and attribute names, for the context search.
+
+    A trailing s is stripped and matching is by substring, so `Regions` reaches "regions"
+    and `planSteps` reaches "steps". Words of three characters or fewer are dropped: `id`
+    and `no` sit somewhere in any corpus.
+    """
+    words = re.findall(r"[A-Z]?[a-z]+", f"{prim.GetName()} {name}")
+    stems = {w.lower().rstrip("s") for w in words if len(w) > 3}
+    return stems - STEM_STOPWORDS
+
+
+def in_context(corpus, value, stems):
+    """The number appears, as a digit or an English word, near one of its own words."""
+    forms = [str(value)]
+    if value in NUMBER_WORDS:
+        forms.append(NUMBER_WORDS[value])
+    for form in forms:
+        for match in re.finditer(rf"(?<![\w.]){re.escape(form)}(?![\w.])", corpus, re.I):
+            start = max(0, match.start() - CONTEXT_WINDOW)
+            window = corpus[start:match.end() + CONTEXT_WINDOW].lower()
+            if any(stem in window for stem in stems):
+                return True
+    return False
+
+
 def check_counts(stage, root, problems):
-    named = list(stage.GetRootLayer().customLayerData.get("sources", []))
+    layer = stage.GetRootLayer().customLayerData
+    named = list(layer.get("sources", []))
     if not named:
         problems.append("the layer states no sources, so no count can be checked")
         return
@@ -208,22 +317,38 @@ def check_counts(stage, root, problems):
             continue
         corpus.append(path.read_text(encoding="utf-8", errors="ignore").replace(",", ""))
     joined = "\n".join(corpus)
-    skipped = []
-    for where, value, is_int in numbers(stage):
-        if value.startswith("-"):
+    declared = set(str(x) for x in layer.get("uncheckedIntegers", []))
+    used = set()
+    for prim, name, value, printed, is_int in numbers(stage):
+        if value < 0:
             continue
-        if is_int and int(value) < SEARCH_FLOOR:
-            skipped.append(f"{where.rsplit('/', 1)[-1]}={value}")
+        where = f"{prim.GetPath()}.{name}"
+        short = f"{prim.GetName()}.{name}"
+        if is_int and counted_structurally(prim, name):
+            continue
+        if is_int and value < SEARCH_FLOOR:
+            if in_context(joined, value, name_stems(prim, name)):
+                continue
+            if short in declared:
+                used.add(short)
+                continue
+            problems.append(
+                f"{where} = {printed} appears in no source near a word from its own name, "
+                "and is not in uncheckedIntegers"
+            )
             continue
         # Trailing zeros are allowed on a float because USD prints 8.60 as 8.6 and the
         # source that measured it wrote "8.60 GiB". Requiring the exact characters made the
         # plan gate report a print format as a drift, which is the convenient proxy rather
         # than the quantity.
-        pattern = rf"(?<![\d.]){re.escape(value)}{'' if is_int else '0*'}(?![\d.])"
+        tail = "" if is_int else "0*"
+        pattern = rf"(?<![\d.]){re.escape(printed)}{tail}(?![\d.])"
         if not re.search(pattern, joined):
-            problems.append(f"{where} = {value} appears in no source")
-    if skipped:
-        print(f"  below the search floor of {SEARCH_FLOOR}, not searched: {', '.join(skipped)}")
+            problems.append(f"{where} = {printed} appears in no source")
+    for stale in sorted(declared - used):
+        problems.append(f"uncheckedIntegers names {stale!r}, which is checked or is not there")
+    if used:
+        print(f"  declared unchecked, {len(used)}: {', '.join(sorted(used))}")
 
 
 def check(layer_path=DEFAULT_LAYER, root=None):
@@ -233,6 +358,8 @@ def check(layer_path=DEFAULT_LAYER, root=None):
     check_targets(stage, problems)
     check_derivable_not_stored(stage, problems)
     check_writers(stage, problems)
+    check_orders(stage, problems)
+    check_row_counts(stage, problems)
     if root is not None:
         check_counts(stage, root, problems)
     return problems
@@ -273,6 +400,14 @@ def Scope "Etnf"
             custom string[] columns = ["joint_id int8 PK"]
             custom int rowCount = 17
         }
+
+        def "Precisions"
+        {
+            custom uniform token kind = "interned"
+            custom string[] columns = ["precision_id int8 PK"]
+            custom string[] rows = ["bf16", "nf4"]
+            custom int rowCount = 2
+        }
     }
 
     def Scope "Measured"
@@ -295,6 +430,19 @@ def Scope "Etnf"
         }
     }
 
+    def Scope "Rules"
+    {
+        def "First"
+        {
+            custom int order = 1
+        }
+
+        def "Second"
+        {
+            custom int order = 2
+        }
+    }
+
     def Scope "StageWrites"
     {
         def "EditScore"
@@ -302,10 +450,16 @@ def Scope "Etnf"
             custom uniform token state = "exists"
             rel writes = </Etnf/Measured/Scores>
         }
+
+        def "VoxHammer"
+        {
+            custom uniform token state = "stub"
+            custom int planSteps = 7
+        }
     }
 }
 """
-GOOD_SOURCE = "the detector emits 17 joints\n"
+GOOD_SOURCE = "the detector emits 17 joints, and the server runs the same 7 steps\n"
 
 SECOND_WRITER = """
         def "Referee"
@@ -327,7 +481,7 @@ def self_test():
         ("a derivable column stored anyway",
          {"layer": GOOD.replace('"overall float32"', '"overall float32", "delta float32"')}, True),
         ("an emitted relation nothing writes",
-         {"layer": GOOD.replace("rel writes = </Etnf/Measured/Scores>", "custom int spare = 0")}, True),
+         {"layer": GOOD.replace("rel writes = </Etnf/Measured/Scores>", "custom int spare = 42")}, True),
         ("an emitted relation two stages write",
          {"layer": GOOD.replace('        def "EditScore"', SECOND_WRITER + '        def "EditScore"')}, True),
         ("a kind outside the vocabulary",
@@ -337,9 +491,26 @@ def self_test():
         ("a relation with no columns",
          {"layer": GOOD.replace('custom string[] columns = ["joint_id int8 PK"]\n', "")}, True),
         ("a count that appears in no source",
-         {"source": "the detector emits some joints\n"}, True),
+         {"source": "the detector emits some joints, and the server runs the same 7 steps\n"}, True),
         ("a source that does not exist",
          {"layer": GOOD.replace('"src.txt"', '"missing.txt"')}, True),
+        ("an order sequence with a gap",
+         {"layer": GOOD.replace("custom int order = 2", "custom int order = 3")}, True),
+        ("an order given to two prims",
+         {"layer": GOOD.replace("custom int order = 2", "custom int order = 1")}, True),
+        ("a rowCount that disagrees with its own rows",
+         {"layer": GOOD.replace("custom int rowCount = 2", "custom int rowCount = 3")}, True),
+        ("a small integer whose source says the number and not the word",
+         {"source": "the detector emits 17 joints, and the server runs the same 7 of them\n"}, True),
+        ("a small integer beside a word describing its shape rather than its subject",
+         {"source": "the detector emits 17 joints, and the counts run 7 of them\n"}, True),
+        ("that same integer, declared unchecked instead",
+         {"layer": GOOD.replace('string[] sources = ["src.txt"]',
+                                'string[] sources = ["src.txt"]\n        string[] uncheckedIntegers = ["VoxHammer.planSteps"]'),
+          "source": "the detector emits 17 joints, and the server runs the same 7 of them\n"}, False),
+        ("a declaration for an integer that is checked after all",
+         {"layer": GOOD.replace('string[] sources = ["src.txt"]',
+                                'string[] sources = ["src.txt"]\n        string[] uncheckedIntegers = ["VoxHammer.planSteps"]')}, True),
     ]
 
     ok = True
