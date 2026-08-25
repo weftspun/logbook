@@ -30,14 +30,14 @@ A loop calls services over HTTP and models through `pixi`. A service that is not
 up produces a connection error rather than a low score, which is the intended
 behaviour: an unmet precondition is a failure, never a quiet zero.
 
-| what | where | needed by |
-| ---- | ----- | --------- |
-| CycleGAN style transfer | `localhost:8000` | loop 3 |
-| Pixal3D | `localhost:8002` | loop 4 |
-| VoxHammer | `localhost:8003` | loop 4's latent arm, which is stubbed |
-| pixi environment `omnigen2` | the corpus repository | loops 2, 3, 4 |
-| pixi environment `editscore` | the corpus repository | all four |
-| pixi environment `anny` | the corpus repository | loop 1 |
+| what                         | where                 | needed by                             |
+| ---------------------------- | --------------------- | ------------------------------------- |
+| CycleGAN style transfer      | `localhost:8000`      | loop 3                                |
+| Pixal3D                      | `localhost:8002`      | loop 4                                |
+| VoxHammer                    | `localhost:8003`      | loop 4's latent arm, which is stubbed |
+| pixi environment `omnigen2`  | the corpus repository | loops 2, 3, 4                         |
+| pixi environment `editscore` | the corpus repository | all four                              |
+| pixi environment `anny`      | the corpus repository | loop 1                                |
 
 The two heavy environments cannot be merged and the notebooks do not try:
 OmniGen2 pins `torch 2.6.0+cu124` and EditScore pins `cu128`. The notebooks pin
@@ -50,11 +50,11 @@ Everything runs on the desk card, 24 GB. The numbers below were measured by the
 scripts that do the work, not estimated, and they are what the settings follow
 from rather than decoration.
 
-| stage | precision | peak | note |
-| ----- | --------- | ---- | ---- |
-| EditScore at 512x512 | NF4 | 6.75 GiB | fits the 8 GiB budget |
-| EditScore at 1024x1024 | NF4 | 8.60 GiB | does not, hence a pixel cap of 262144 |
-| OmniGen2 | bf16 | about 17 GiB of weights | no quantised path is offered |
+| stage                  | precision | peak                    | note                                  |
+| ---------------------- | --------- | ----------------------- | ------------------------------------- |
+| EditScore at 512x512   | NF4       | 6.75 GiB                | fits the 8 GiB budget                 |
+| EditScore at 1024x1024 | NF4       | 8.60 GiB                | does not, hence a pixel cap of 262144 |
+| OmniGen2               | bf16      | about 17 GiB of weights | no quantised path is offered          |
 
 The asymmetry is a rule rather than an oversight. A quantised generator does not
 write corpus data; a quantised verifier may, because condition 5 is about what
