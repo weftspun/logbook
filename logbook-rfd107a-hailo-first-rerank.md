@@ -225,7 +225,7 @@ interesting thing about it. What moves is the weight:
 **The bottleneck is a device, and the graph cannot express it.** T05, T07 and T08 are all
 `gpuBound` and all want the one plugged-in bf16 card, because condition 5 forbids the quantised
 alternative for anything writing corpus data. Their expected sizes sum to **13.0 of the 18.3
-points — 65% of the path — on a single RTX 3090**, a serial floor that no dependency edge
+points — 65% of the path — on the PC**, a serial floor that no dependency edge
 describes.
 
 So the largest lever is not a resequencing. Plugging in the 4090 brings the path to **11.9
@@ -239,12 +239,23 @@ cable.
 `cores x lanes x 2 for the fused multiply-add x clock`, re-derived by the checker so a
 transcription error fails a command:
 
-| device      | derivation               | FP32    | memory | bf16   |
-| ----------- | ------------------------ | ------- | ------ | ------ |
-| 3090 (live) | 82 x 128 x 2 x 1.695 GHz | 35.6 TF | 24 GiB | native |
-| 4090 (off)  | 128 x 128 x 2 x 2.52 GHz | 82.6 TF | 24 GiB | native |
-| M2 Pro      | 19 x 128 x 2 x 1.398 GHz | 6.8 TF  | 32 GiB | **no** |
-| Hailo-10H   | published, 40 TOPS INT4  | —       | 8 GiB  | n/a    |
+| desk      | role                                             | peak                             | bf16   |
+| --------- | ------------------------------------------------ | -------------------------------- | ------ |
+| Mac       | gates, schema, ONNX export, deterministic render | 5.71 TF measured, 84% of derived | **no** |
+| PC        | everything that generates corpus data            | **unmeasured**                   | native |
+| Hailo-10H | deployment target, verifier host                 | 40 TOPS INT4, 30% ASSUMED        | n/a    |
+
+**RETRACTED: the card rows, and the lever computed from them.** This table named an `RTX3090`
+and an `RTX4090` with derived peaks, and priced a second card at 30% off the path. Both halves
+of that ratio were derived rather than measured, and which silicon sits in the PC changes
+without the plan changing — so the figure read as a schedule decision and was really an
+inventory one. Devices are machines now. Nothing replaces the lever: the contention is real and
+its relief is unquantified until the desk that would relieve it is measured.
+
+**What survives is the binding constraint.** The PC is the only desk with native bf16, and
+condition 5 wants a generator at published precision. The Mac's bf16 is emulated at 2.96
+TFLOP/s — 0.48x its own fp16, below fp32 — and whether emulated bf16 is numerically the same
+bf16 is unmeasured. So corpus generation sits on the PC by rule rather than by speed.
 
 All three clocks are vendor boost figures. **None was read off a desk**, and the checker counts
 them as ASSUMED rather than letting the table read as measured. The Hailo row divides by 40

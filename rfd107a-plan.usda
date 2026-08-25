@@ -104,51 +104,46 @@ def Scope "Rfd107a" (
     # ---------------------------------------------------------------------------------
     def Scope "Devices"
     {
-        def "RTX3090" (
-            doc = """The card that is plugged in. Ampere, so bf16 is native and the tensor
-cores are real, which is what lets a generator run at its published precision -- condition 5
-forbids the quantised alternative for anything writing corpus data.
+        def "Pc" (
+            doc = """The CUDA desk, named for the MACHINE and not for the card in it.
 
-2.3x below the 4090 on derived FP32 and 0.93x on bandwidth. Every estimate inherited from a
-4090 measurement moves by that factor before anything else is considered."""
+RETRACTED: THE `RTX3090` AND `RTX4090` ROWS. This scope carried two card models, one with
+`pluggedIn = 1` and one with `pluggedIn = 0`, and computed a lever from the ratio of their
+derived peaks -- "plugging in the unplugged card is worth 30%". That is withdrawn. The card in
+this box is a detail that changes without the plan changing, and pinning to a model produced a
+number that looked like a schedule decision and was really an inventory one. Which silicon is
+installed is measured when work runs on it, not asserted here.
+
+WHAT IS ACTUALLY LOAD-BEARING, and it survives the retraction intact: this is the only machine
+in the fleet with NATIVE bf16. Condition 5 requires a generator to run at its published
+precision, and the Mac has no native bf16 -- measured, 2.96 TFLOP/s against 6.20 for fp16, below
+even fp32. So every task that generates corpus data is pinned here by RULE rather than by
+preference, and no amount of unified memory on the other desk changes that.
+
+PEAK IS UNMEASURED AND SAYS SO. There is no derived figure because there is no committed card
+model to derive one from, and `check_rfd107a_plan.py` counts this rather than skipping it. A
+device with no measurement is named as having none; the alternative is a table that reads as
+though every row were known."""
         )
         {
             custom uniform token kind = "gpu"
-            custom int computeUnits = 82
-            custom int lanesPerUnit = 128
-            custom float clockGhz = 1.695
-            custom float fp32Tflops = 35.6
-            custom float bandwidthGbs = 936
-            custom float memoryGib = 24
             custom bool bf16Native = 1
             custom bool tensorCores = 1
             custom bool pluggedIn = 1
-            custom bool clockAssumed = 1
-        }
-
-        def "RTX4090" (
-            doc = """The baseline, and it is not a schedulable device. Every figure in the
-logbook that carries a GPU carries this one, so it belongs in the table -- a number without a
-baseline is not a measurement -- with `pluggedIn = 0` so its absence is a value rather than a
-silence. Plugging it in is the cheapest available schedule compression and the plan should be
-able to price that rather than argue it."""
-        )
-        {
-            custom uniform token kind = "gpu"
-            custom int computeUnits = 128
-            custom int lanesPerUnit = 128
-            custom float clockGhz = 2.52
-            custom float fp32Tflops = 82.6
-            custom float bandwidthGbs = 1008
-            custom float memoryGib = 24
-            custom bool bf16Native = 1
-            custom bool tensorCores = 1
-            custom bool pluggedIn = 0
-            custom bool clockAssumed = 1
+            custom bool peakUnmeasured = 1
         }
 
         def "M2Pro" (
-            doc = """Mac mini, 19 GPU cores, 32 GiB unified. The largest single memory pool in
+            doc = """The Mac desk. Mac mini, 19 GPU cores, 32 GiB unified.
+
+IT CANNOT HOST A GENERATOR, AND THAT IS A RULE RATHER THAN A SPEED PROBLEM. Condition 5 wants
+published precision; bf16 here is emulated and measures 2.96 TFLOP/s, 0.48x fp16 and below
+fp32. Whether emulated bf16 is numerically the same bf16 is unmeasured, and "probably" does not
+satisfy a condition about provenance. So corpus generation belongs on the PC desk and the
+question is closed until somebody measures the emulation rather than argues about it.
+
+What it IS for: everything that is not a generator. Gates, schema work, the ONNX export and its
+numeric check, and the deterministic render -- all of which run here today. The largest single memory pool in
 the fleet and the smallest compute: 5.2x below the 3090 on derived FP32, no tensor cores, and
 NO NATIVE bf16 -- so running a generator at its published precision here is emulation, which is
 a correctness question before it is a speed one and is unmeasured either way.
