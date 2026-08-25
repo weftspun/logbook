@@ -306,12 +306,13 @@
         <thead><tr><th>Stage</th><th>Writes</th><th>State</th></tr></thead>
         <tbody>
           <tr><td class="stage">Keypoints</td><td><code>observations</code>,
-              <code>observed_points</code></td><td><span class="pill p-have">exists</span></td></tr>
+              <code>observed_points</code><span class="note">blocked: nothing checked out here
+              carries rfdetr, so the fit can take 17 points from anywhere but not from a
+              photograph</span></td><td><span class="pill p-gap">blocked</span></td></tr>
           <tr><td class="stage">AnnyFit</td><td><code>fits</code>, and the residuals the referee
-              reads<span class="note">blocked: both solvers take posed vertices and the detector
-              gives 17 2D points, so <code>fits</code> has no producer and
-              <code>fit_residuals</code> and <code>referee_verdicts</code> stay
-              empty</span></td><td><span class="pill p-gap">blocked</span></td></tr>
+              reads<span class="note">a reprojection fit through the differentiable forward;
+              a known-answer round trip recovers 0.263% of stature, about one pencil on a
+              1.7 m body</span></td><td><span class="pill p-have">exists</span></td></tr>
           <tr><td class="stage">Render</td><td><code>artifacts</code>, plus the sidecar the
               hash comes from</td><td><span class="pill p-have">exists</span></td></tr>
           <tr><td class="stage">EditScore</td><td><code>scores</code>,

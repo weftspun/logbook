@@ -94,32 +94,44 @@ def Scope "FourLoops" (
     )
     {
         def "Keypoints" (
-            doc = "rf-detr-mcp analyze_pose. CPU by design. Returns 17 joints with confidences."
+            doc = """rf-detr-mcp analyze_pose. CPU by design. Returns 17 joints with confidences.
+
+This is loop one's blocker now, and it is a smaller one than the fit was. Nothing checked out
+here carries `rfdetr`: rf-detr-mcp documents a local virtual environment that is not in the
+checkout, and no pixi environment in the corpus repository declares it either."""
         )
         {
             custom uniform token kind = "detector"
-            custom uniform token state = "exists"
+            custom uniform token state = "blocked"
             custom string entry = "1-transport/rf-detr-mcp/server.py:analyze_pose"
             custom string outputs = "17 joints, pixels and confidence"
         }
 
         def "AnnyFit" (
-            doc = """AnnyInverter solves a pose from target VERTICES, and that is why loop one stops.
+            doc = """A pose solved from keypoints, and the earlier entry here was wrong.
 
-Both candidate solvers take the same shape. `AnnyInverter.__call__` takes
-`vertices_target (B, V, 3)` and SOMA-X's `PoseInversion.fit` takes `posed_vertices (B, V, 3)`.
-RF-DETR supplies 17 two-dimensional keypoints with confidences, and nothing in this workspace
-lifts points to vertices. A lift written here would put a number in front of the referee that
-no measurement supports.
+RETRACTED: THIS WAS RECORDED AS BLOCKED, on the grounds that `AnnyInverter.__call__` takes
+`vertices_target (B, V, 3)` and SOMA-X's `PoseInversion.fit` takes `posed_vertices (B, V, 3)`
+while the detector gives 17 two-dimensional points. Both signatures are right and the
+conclusion was not: the sweep behind it covered 3-interactor and missed 4-entities, where
+`anny-pose-retarget-work/fit_joints_to_anny.py` solves a full 104-bone pose from 21 three
+dimensional joint positions.
 
-SOMA-X is unavailable twice over: its assets are a GitHub release artifact fetched by
-`assets/fetch.sh`, and the checked-out `assets/` holds that script and nothing else."""
+What was missing was the front end, and `service-livebook/priv/python/loop1_fit.py` is it.
+The forward is differentiable end to end, so a weak-perspective camera on the output makes
+the loss a reprojection distance and no inverse model is needed. Measured by a known-answer
+round trip: median 1.56 px on a 590 px stature, 0.263% of stature, 4.5 mm on a 1.7 m body,
+about one pencil. Shuffled targets reach 111.8 px.
+
+It does not recover depth, and `Referee` is what says whether a body could hold the result."""
         )
         {
             custom uniform token kind = "fit"
-            custom uniform token state = "blocked"
-            custom string entry = "3-interactor/anny/src/anny/anny_inverter.py:AnnyInverter"
-            custom string outputs = "pose, macro, v_hat"
+            custom uniform token state = "exists"
+            custom string entry = "7-service/service-livebook/priv/python/loop1_fit.py:fit_2d"
+            custom string outputs = "pose, keypoints2d, residual_px, stature_px, camera"
+            custom float roundTripMedianPx = 1.56
+            custom float roundTripPctOfStature = 0.263
         }
 
         def "Render" (
